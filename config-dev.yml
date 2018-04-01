@@ -1,0 +1,41 @@
+appname: tokenmed
+
+baseurl: https://tokenbest.io
+
+sitename: Tokenmama.IO
+
+port: 8007
+
+logpath: /tmp/tokenme
+
+debug: true
+
+mysql:
+  host: tokenme.c4evkvyvqy7m.ap-northeast-1.rds.amazonaws.com:3306
+  user: tokenme
+  passwd: tokenmeCRICSUKI2
+  db: tokenme
+
+redis:
+  master: localhost:6379
+  slave: localhost:6379
+
+geth: https://mainnet.infura.io/NlT37dDxuLT2tlZNw3It
+geoip: /etc/GeoLite2-Country.mmdb
+
+twiliotoken: khWDR6abzUyqzM1WHy9Tfq7P2jRoEhLA
+
+telegrambottoken: 547738949:AAFJLOcFctmNEK5wDRDpWP8lE107T7p8XQU
+telegrambotname: TokenmeBot
+
+wxappid: wxed7bca95735072e9
+wxsecret: 57d8cd91005b4e916dc9f4bb563f06ec
+
+tokensalt: 20eefe8d82ba3ca8a417e14a48d24632bc35bbd7
+linksalt: 675f6ca23bf616fdb9b06a8d661b4b939f138038
+
+airdropcommissionnfee: 2
+dealerincomewallet: 0x70d69d3aaed7b98c8b0bb0e8bce5caf40e889c69
+redpacketincomewallet: 0x70d69d3aaed7b98c8b0bb0e8bce5caf40e889c69
+
+
