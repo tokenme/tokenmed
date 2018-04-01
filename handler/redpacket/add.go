@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/gin-gonic/gin"
 	"github.com/mkideal/log"
+	"github.com/nlopes/slack"
 	"github.com/tokenme/tokenmed/coins/eth"
 	ethutils "github.com/tokenme/tokenmed/coins/eth/utils"
 	"github.com/tokenme/tokenmed/common"
@@ -93,6 +94,7 @@ func AddHandler(c *gin.Context) {
 		redPacketOutcomeLeft = big.NewInt(0)
 		redPacketCashOutput  = big.NewInt(0)
 		tokenCash            *big.Int
+		useCashOrWallet      = "cash"
 	)
 
 	{
@@ -223,6 +225,7 @@ GROUP BY
 	walletPrivateKey, _ := utils.AddressDecrypt(walletAddress, walletSalt, Config.TokenSalt)
 	walletPublicKey, _ := eth.AddressFromHexPrivateKey(walletPrivateKey)
 	if tokenCash.Cmp(totalTokens) == -1 { // NOT ENOUGH CASH need to use Wallet balannce
+		useCashOrWallet = "wallet"
 		ethBalance, err := eth.BalanceOf(Service.Geth, c, walletPublicKey)
 		if CheckErr(err, c) {
 			return
@@ -311,6 +314,49 @@ GROUP BY
 	if CheckErr(err, c) {
 		return
 	}
+	if Service.Slack != nil {
+		linkKey, _ := common.EncodeRedPacketLink([]byte(Config.LinkSalt), rp.Id)
+		rp.Link = fmt.Sprintf("%s%s", Config.RedPacketShareLink, linkKey)
+		rp.ShortUrl = rp.GetShortUrl(Service)
+
+		params := slack.PostMessageParameters{}
+		attachment := slack.Attachment{
+			Color:      "#bd503a",
+			AuthorName: user.ShowName,
+			AuthorIcon: user.Avatar,
+			Title:      rp.ShortUrl,
+			TitleLink:  rp.ShortUrl,
+			Text:       rp.Message,
+			Fields: []slack.AttachmentField{
+				slack.AttachmentField{
+					Title: "Token",
+					Value: rp.Token.Name,
+					Short: true,
+				},
+				slack.AttachmentField{
+					Title: "Recipients",
+					Value: fmt.Sprintf("%d", rp.Recipients),
+					Short: true,
+				},
+				slack.AttachmentField{
+					Title: "Giveout",
+					Value: fmt.Sprintf("%.4f", req.TotalTokens),
+					Short: true,
+				},
+				slack.AttachmentField{
+					Title: "FROM",
+					Value: useCashOrWallet,
+					Short: true,
+				},
+			},
+		}
+		params.Attachments = []slack.Attachment{attachment}
+		_, _, err := Service.Slack.PostMessage("G9Y7METUG", "new red packet", params)
+		if err != nil {
+			log.Error(err.Error())
+		}
+	}
+
 	c.JSON(http.StatusOK, rp)
 }
 

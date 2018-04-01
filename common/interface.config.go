@@ -14,6 +14,7 @@ type Config struct {
 	Geth                         string `default:"https://mainnet.infura.io/NlT37dDxuLT2tlZNw3It"`
 	EthplorerKey                 string `default:"freekey"`
 	SlackToken                   string `required:"true"`
+	SlackAdminChannelID          string `default:"G9Y7METUG"`
 	GeoIP                        string `required:"true"`
 	TokenSalt                    string `default:"20eefe8d82ba3ca8a417e14a48d24632bc35bbd7"`
 	LinkSalt                     string `default:"20eefe8d82ba3ca8a417e14a48d24632bc35bbd7"`

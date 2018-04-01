@@ -73,7 +73,8 @@ func (this *Service) NewGeoIP(geoipFile string) (*geoip2.Reader, error) {
 }
 
 func (this *Service) NewSlack(token string) *slack.Client {
-	return slack.New(token)
+	this.Slack = slack.New(token)
+	return this.Slack
 }
 
 func newRedisPool(server string, maxIdle int, idleTime time.Duration) *redis.Pool {
