@@ -36,6 +36,7 @@ type Config struct {
 	EnableTelegramBot            bool
 	EnableGC                     bool
 	EnableDealer                 bool
+	EnableDepositChecker         bool
 	Mail                         MailConfig
 }
 

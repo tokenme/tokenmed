@@ -14,6 +14,7 @@ import (
 	"github.com/tokenme/tokenmed/router"
 	"github.com/tokenme/tokenmed/tools/airdrop"
 	"github.com/tokenme/tokenmed/tools/gc"
+	"github.com/tokenme/tokenmed/tools/redpacket"
 	"github.com/tokenme/tokenmed/tools/telegram"
 	"github.com/tokenme/tokenmed/tools/tracker"
 	"os"
@@ -39,6 +40,7 @@ func main() {
 	flag.BoolVar(&config.EnableTelegramBot, "telegrambot", false, "enable telegram bot")
 	flag.BoolVar(&config.EnableGC, "gc", false, "enable gc")
 	flag.BoolVar(&config.EnableDealer, "dealer", false, "enable dealer")
+	flag.BoolVar(&config.EnableDepositChecker, "deposit", false, "enable deposit checker")
 	flag.Parse()
 
 	os.Setenv("CONFIGOR_ENV_PREFIX", "-")
@@ -79,11 +81,16 @@ func main() {
 	allowanceChecker := airdrop.NewAllowanceChecker(service, config)
 	airdropper := airdrop.NewAirdropper(service, config)
 	airdropChecker := airdrop.NewAirdropChecker(service, config, trackerService)
+	depositChecker := redpacket.NewDepositChecker(service, config)
 	if config.EnableDealer {
 		go dealerContractDeployer.Start()
 		go allowanceChecker.Start()
 		go airdropper.Start()
 		go airdropChecker.Start()
+	}
+
+	if config.EnableDepositChecker {
+		go depositChecker.Start()
 	}
 
 	if config.EnableWeb {
@@ -120,5 +127,6 @@ func main() {
 	airdropper.Stop()
 	airdropChecker.Stop()
 	gcHandler.Stop()
+	depositChecker.Stop()
 	trackerService.Flush()
 }

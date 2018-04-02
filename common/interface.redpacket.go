@@ -45,6 +45,7 @@ type RedPacket struct {
 	ExpireTime          time.Time            `json:"expire_time"`
 	Inserted            time.Time            `json:"inserted"`
 	Updated             time.Time            `json:"updated"`
+	HashKey             string               `json:"hash_key,omitempty"`
 	Link                string               `json:"link"`
 	ShortUrl            string               `json:"short_url"`
 	SubmittedRecipients []RedPacketRecipient `json:"submitted_recipients,omitempty"`

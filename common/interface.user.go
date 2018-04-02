@@ -102,8 +102,9 @@ type UserWallet struct {
 }
 
 type UserFund struct {
-	UserId uint64   `json:"user_id"`
-	Token  Token    `json:"token"`
-	Amount *big.Int `json:"amount"`
-	Cash   *big.Int `json:"cash"`
+	UserId    uint64   `json:"user_id"`
+	Token     Token    `json:"token"`
+	Amount    *big.Int `json:"amount"`
+	Cash      *big.Int `json:"cash"`
+	DepositTx string   `json:"deposit_tx,omitempty"`
 }

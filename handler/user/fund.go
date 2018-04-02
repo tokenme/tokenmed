@@ -184,16 +184,56 @@ GROUP BY
 			return
 		}
 		for _, row := range rows {
+			addr := row.Str(0)
 			giveOut := row.ForceFloat(1)
 			decimals := row.Int(2)
 			var value uint64
 			if decimals >= 4 {
 				value = uint64(giveOut * float64(utils.Pow40.Uint64()))
-				redPacketIncome[row.Str(0)] = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
-				redPacketIncome[row.Str(0)] = new(big.Int).Div(redPacketIncome[row.Str(0)], utils.Pow40)
+				redPacketIncome[addr] = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+				redPacketIncome[addr] = new(big.Int).Div(redPacketIncome[addr], utils.Pow40)
 			} else {
 				value = uint64(giveOut)
-				redPacketIncome[row.Str(0)] = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+				redPacketIncome[addr] = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+			}
+		}
+
+		rows, _, err = db.Query(`SELECT
+	d.token_address ,
+	SUM(d.tokens) AS income,
+	IF(ISNULL(t.address), 18, t.decimals) AS decimals
+FROM
+	tokenme.deposits AS d
+LEFT JOIN tokenme.tokens AS t ON ( t.address = d.token_address )
+WHERE
+	d.user_id = %d
+AND d.status = 1
+GROUP BY
+	d.token_address`, user.Id)
+		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
+			return
+		}
+		for _, row := range rows {
+			addr := row.Str(0)
+			deposit := row.ForceFloat(1)
+			decimals := row.Int(2)
+			var (
+				value        uint64
+				depositValue *big.Int
+			)
+			if decimals >= 4 {
+				value = uint64(deposit * float64(utils.Pow40.Uint64()))
+				depositValue = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+				depositValue = new(big.Int).Div(depositValue, utils.Pow40)
+			} else {
+				value = uint64(deposit)
+				depositValue = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+			}
+			if _, found := redPacketIncome[addr]; found {
+				redPacketIncome[addr] = new(big.Int).Add(redPacketIncome[addr], depositValue)
+			} else {
+				redPacketIncome[addr] = depositValue
 			}
 		}
 
@@ -291,45 +331,44 @@ GROUP BY
 	}
 	ethToken.LogoAddress = ethToken.GetLogoAddress(Config.CDNUrl)
 
-	fund := common.UserFund{
+	ethFund := common.UserFund{
 		UserId: user.Id,
 		Token:  ethToken,
 		Amount: ethBalance,
 		Cash:   big.NewInt(0),
 	}
 	if income, found := redPacketIncome[""]; found {
-		fund.Cash = income
+		ethFund.Cash = income
 	}
 	if outcomeLeft, found := redPacketOutcomeLeft[""]; found {
-		fund.Cash = new(big.Int).Add(fund.Cash, outcomeLeft)
+		ethFund.Cash = new(big.Int).Add(ethFund.Cash, outcomeLeft)
 	}
 
 	if cashOutput, found := redPacketCashOutput[""]; found {
-		if fund.Cash.Cmp(cashOutput) == -1 {
-			fund.Cash = big.NewInt(0)
+		if ethFund.Cash.Cmp(cashOutput) == -1 {
+			ethFund.Cash = big.NewInt(0)
 		} else {
-			fund.Cash = new(big.Int).Sub(fund.Cash, cashOutput)
+			ethFund.Cash = new(big.Int).Sub(ethFund.Cash, cashOutput)
 		}
 	}
 
-	userWallet.RedPacketEnoughGas = fund.Amount.Cmp(big.NewInt(int64(userWallet.RedPacketMinGas))) != -1
+	userWallet.RedPacketEnoughGas = ethFund.Amount.Cmp(big.NewInt(int64(userWallet.RedPacketMinGas))) != -1
 
 	redisMasterConn := Service.Redis.Master.Get()
 	defer redisMasterConn.Close()
 
-	if fund.Amount.Cmp(big.NewInt(0)) == 1 || fund.Cash.Cmp(big.NewInt(0)) == 1 {
+	if ethFund.Amount.Cmp(big.NewInt(0)) == 1 || ethFund.Cash.Cmp(big.NewInt(0)) == 1 {
 		coinPrice, err := redis.Float64(redisMasterConn.Do("GET", "coinprice-eth"))
 		if err != nil || coinPrice == 0 {
 			coinPrice, err := cmc.GetCoinPriceUSD("ethereum")
 			if err == nil {
-				fund.Token.Price.Rate = coinPrice
+				ethFund.Token.Price.Rate = coinPrice
 				redisMasterConn.Do("SETEX", "coinprice-eth", 60*60, coinPrice)
 			}
 		} else {
-			fund.Token.Price.Rate = coinPrice
+			ethFund.Token.Price.Rate = coinPrice
 		}
 	}
-	funds = append(funds, fund)
 
 	var (
 		tokens        []common.Token
@@ -437,10 +476,13 @@ GROUP BY
 	}
 	var wg sync.WaitGroup
 	var (
-		mgetKeys []interface{}
-		msetKeys = make(map[string]float64)
+		mgetKeys   []interface{}
+		msetKeys   = make(map[string]float64)
+		tokenAddrs = []string{"''"}
+		depositTx  = make(map[string]string)
 	)
 	for _, token := range tokens {
+		tokenAddrs = append(tokenAddrs, fmt.Sprintf("'%s'", db.Escape(token.Address)))
 		if price, found := tokenPriceMap[token.Address]; !found || price == 0 {
 			mgetKeys = append(mgetKeys, fmt.Sprintf("coinprice-%s", token.Address))
 		}
@@ -455,6 +497,19 @@ GROUP BY
 			}
 		}
 	}
+	if len(tokenAddrs) > 0 {
+		rows, _, err := db.Query(`SELECT tx, token_address FROM deposits WHERE status=0 AND user_id=%d AND token_address IN (%s)`, user.Id, strings.Join(tokenAddrs, ","))
+		if err != nil {
+			raven.CaptureError(err, nil)
+		}
+		for _, row := range rows {
+			depositTx[row.Str(1)] = row.Str(0)
+		}
+	}
+	if tx, found := depositTx[""]; found {
+		ethFund.DepositTx = tx
+	}
+	funds = append(funds, ethFund)
 	for _, token := range tokens {
 		wg.Add(1)
 		go func(token common.Token) {
@@ -504,6 +559,9 @@ GROUP BY
 				}
 			}
 
+			if tx, found := depositTx[token.Address]; found {
+				fund.DepositTx = tx
+			}
 			funds = append(funds, fund)
 		}(token)
 	}

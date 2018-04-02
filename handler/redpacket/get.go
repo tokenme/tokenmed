@@ -76,8 +76,8 @@ func GetHandler(c *gin.Context) {
 			}
 		}
 		if rp.FundTxStatus == 2 || rp.FundTxStatus == 0 {
-			linkKey, _ := common.EncodeRedPacketLink([]byte(Config.LinkSalt), rp.Id)
-			rp.Link = fmt.Sprintf("%s%s", Config.RedPacketShareLink, linkKey)
+			rp.HashKey, _ = common.EncodeRedPacketLink([]byte(Config.LinkSalt), rp.Id)
+			rp.Link = fmt.Sprintf("%s%s", Config.RedPacketShareLink, rp.HashKey)
 			rp.ShortUrl = rp.GetShortUrl(Service)
 		}
 	}

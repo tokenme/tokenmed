@@ -130,6 +130,39 @@ AND rp.token_address='%s' GROUP BY rp.token_address`, user.Id, req.TokenAddress)
 		}
 
 		rows, _, err = db.Query(`SELECT
+	d.token_address ,
+	SUM(d.tokens),
+	IF(ISNULL(t.address), 18, t.decimals)
+FROM
+	tokenme.deposits AS d
+LEFT JOIN tokenme.tokens AS t ON ( t.address = d.token_address )
+WHERE
+	d.user_id = %d
+AND d.status = 1
+AND d.token_address='%s' GROUP BY d.token_address`, user.Id, req.TokenAddress)
+		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
+			return
+		}
+		if len(rows) > 0 {
+			deposits := rows[0].ForceFloat(1)
+			decimals := rows[0].Int(2)
+			var (
+				value        uint64
+				depositValue *big.Int
+			)
+			if decimals >= 4 {
+				value = uint64(deposits * float64(utils.Pow40.Uint64()))
+				depositValue = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+				depositValue = new(big.Int).Div(depositValue, utils.Pow40)
+			} else {
+				value = uint64(deposits)
+				depositValue = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+			}
+			redPacketIncome = new(big.Int).Add(redPacketIncome, depositValue)
+		}
+
+		rows, _, err = db.Query(`SELECT
 	rp.token_address ,
 	SUM(rp.total_tokens) - SUM(IF(rp.fund_tx_status = 0 AND rp.expire_time >= NOW(), rp.total_tokens, 0)) AS unexpired_outcome_left,
 	SUM(IF(rp.fund_tx_status = 0, rp.total_tokens, 0)) AS cash_output,
@@ -262,7 +295,7 @@ GROUP BY
 				tokenValue = new(big.Int).Mul(totalTokens, utils.Pow10(int(rp.Token.Decimals)))
 			}
 			if tokenBalance.Cmp(tokenValue) == -1 {
-				c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%d", rp.TotalTokens)})
+				c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%.4f", req.TotalTokens)})
 				return
 			}
 		}

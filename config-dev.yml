@@ -17,8 +17,8 @@ mysql:
   db: tokenme
 
 redis:
-  master: localhost:6379
-  slave: localhost:6379
+  master: tokenme-001.0gguww.0001.apne1.cache.amazonaws.com:6379
+  slave: tokenme-002.0gguww.0001.apne1.cache.amazonaws.com:6379
 
 geth: https://mainnet.infura.io/NlT37dDxuLT2tlZNw3It
 geoip: /etc/GeoLite2-Country.mmdb
