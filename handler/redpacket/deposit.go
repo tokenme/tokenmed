@@ -110,12 +110,9 @@ func DepositHandler(c *gin.Context) {
 			raven.CaptureError(err, nil)
 			return
 		}
-		var tokenValue *big.Int
+		tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(token.Decimals)))
 		if token.Decimals >= 4 {
-			tokenValue = new(big.Int).Mul(totalTokens, utils.Pow10(int(token.Decimals)))
 			tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
-		} else {
-			tokenValue = new(big.Int).Mul(totalTokens, utils.Pow10(int(token.Decimals)))
 		}
 		if tokenBalance.Cmp(tokenValue) == -1 {
 			c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%.4f", req.TotalTokens)})
@@ -143,7 +140,11 @@ func DepositHandler(c *gin.Context) {
 			raven.CaptureError(err, nil)
 			return
 		}
-		tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, totalTokens)
+		tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(token.Decimals)))
+		if token.Decimals >= 4 {
+			tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
+		}
+		tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, tokenValue)
 		if CheckErr(err, c) {
 			raven.CaptureError(err, nil)
 			return

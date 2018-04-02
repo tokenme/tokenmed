@@ -287,12 +287,9 @@ GROUP BY
 				raven.CaptureError(err, nil)
 				return
 			}
-			var tokenValue *big.Int
+			tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(rp.Token.Decimals)))
 			if rp.Token.Decimals >= 4 {
-				tokenValue = new(big.Int).Mul(totalTokens, utils.Pow10(int(rp.Token.Decimals)))
 				tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
-			} else {
-				tokenValue = new(big.Int).Mul(totalTokens, utils.Pow10(int(rp.Token.Decimals)))
 			}
 			if tokenBalance.Cmp(tokenValue) == -1 {
 				c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%.4f", req.TotalTokens)})
@@ -314,13 +311,18 @@ GROUP BY
 				GasPrice: gasPrice,
 				GasLimit: rp.GasLimit,
 			}
+
 			eth.TransactorUpdate(transactor, transactorOpts, c)
 			tokenHandler, err := ethutils.NewToken(rp.Token.Address, Service.Geth)
 			if CheckErr(err, c) {
 				raven.CaptureError(err, nil)
 				return
 			}
-			tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, totalTokens)
+			tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(rp.Token.Decimals)))
+			if rp.Token.Decimals >= 4 {
+				tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
+			}
+			tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, tokenValue)
 			if CheckErr(err, c) {
 				raven.CaptureError(err, nil)
 				return
