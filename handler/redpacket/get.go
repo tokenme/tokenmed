@@ -2,6 +2,7 @@ package redpacket
 
 import (
 	"fmt"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	ethutils "github.com/tokenme/tokenmed/coins/eth/utils"
 	"github.com/tokenme/tokenmed/common"
@@ -25,6 +26,7 @@ func GetHandler(c *gin.Context) {
 	db := Service.Db
 	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.message, FLOOR(a.total_tokens * 10000), IFNULL(t.address, ''), IFNULL(t.name, 'Ethereum'), IFNULL(t.symbol, 'Ether'), IFNULL(t.decimals, 18), a.recipients, a.expire_time, a.inserted, a.updated, IF(a.expire_time<NOW(), 6, a.status), a.fund_tx, a.fund_tx_status, IFNULL(t.logo, 1) FROM tokenme.red_packets AS a LEFT JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d AND a.user_id=%d`, redPacketId, user.Id)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	var rp *common.RedPacket
@@ -67,6 +69,7 @@ func GetHandler(c *gin.Context) {
 				}
 				_, _, err = db.Query(`UPDATE tokenme.red_packets SET fund_tx_status=%d WHERE id=%d`, status, rp.Id)
 				if CheckErr(err, c) {
+					raven.CaptureError(err, nil)
 					return
 				}
 				rp.FundTxStatus = status

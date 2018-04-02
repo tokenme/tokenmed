@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
-	"github.com/mkideal/log"
 	"github.com/nlopes/slack"
 	"github.com/tokenme/tokenmed/coins/eth"
 	ethutils "github.com/tokenme/tokenmed/coins/eth/utils"
@@ -43,6 +43,7 @@ func AddHandler(c *gin.Context) {
 	if req.TokenAddress != "" {
 		rows, _, err := db.Query(`SELECT address, name, symbol, decimals, protocol FROM tokenme.tokens WHERE address='%s' LIMIT 1`, db.Escape(req.TokenAddress))
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		if Check(len(rows) == 0, "missing token", c) {
@@ -111,6 +112,7 @@ WHERE
 AND rpr.status = 2
 AND rp.token_address='%s' GROUP BY rp.token_address`, user.Id, req.TokenAddress)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		if len(rows) > 0 {
@@ -141,6 +143,7 @@ AND rp.token_address = '%s'
 GROUP BY
 	rp.token_address`, user.Id, req.TokenAddress)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		if len(rows) > 0 {
@@ -178,6 +181,7 @@ AND rp.expire_time < NOW()
 GROUP BY
 	rp.token_address`, user.Id, req.TokenAddress)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		if len(rows) > 0 {
@@ -213,6 +217,7 @@ GROUP BY
         WHERE uw.user_id=%d AND id=%d`
 	rows, _, err := db.Query(query, user.Id, req.WalletId)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	row := rows[0]
@@ -228,6 +233,7 @@ GROUP BY
 		useCashOrWallet = "wallet"
 		ethBalance, err := eth.BalanceOf(Service.Geth, c, walletPublicKey)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		minGasLimit := new(big.Int).SetUint64(rp.GasPrice * rp.GasLimit)
@@ -245,6 +251,7 @@ GROUP BY
 		if req.TokenAddress != "" {
 			tokenBalance, err := ethutils.BalanceOfToken(Service.Geth, rp.Token.Address, walletPublicKey)
 			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
 				return
 			}
 			var tokenValue *big.Int
@@ -263,6 +270,7 @@ GROUP BY
 		transactor := eth.TransactorAccount(walletPrivateKey)
 		nonce, err := eth.PendingNonce(Service.Geth, c, walletPublicKey)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		var tx *types.Transaction
@@ -276,10 +284,12 @@ GROUP BY
 			eth.TransactorUpdate(transactor, transactorOpts, c)
 			tokenHandler, err := ethutils.NewToken(rp.Token.Address, Service.Geth)
 			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
 				return
 			}
 			tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, totalTokens)
 			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
 				return
 			}
 		} else {
@@ -293,6 +303,7 @@ GROUP BY
 			eth.TransactorUpdate(transactor, transactorOpts, c)
 			tx, err = eth.Transfer(transactor, Service.Geth, c, Config.RedPacketIncomeWallet)
 			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
 				return
 			}
 		}
@@ -301,12 +312,14 @@ GROUP BY
 		rp.FundTxStatus = 1
 		_, _, err = db.Query(`INSERT IGNORE INTO tokenme.user_tx (tx, user_id, from_addr, to_addr, token_address, tokens, eth) VALUES ('%s', %d, '%s', '%s', '%s', %d, 0)`, rp.FundTx, user.Id, walletPublicKey, Config.RedPacketIncomeWallet, rp.Token.Address, totalTokens.Uint64())
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 	}
 
 	_, ret, err := db.Query(`INSERT INTO tokenme.red_packets (user_id, message, token_address, total_tokens, gas_price, gas_limit, recipients, fund_tx, fund_tx_status, expire_time, status) VALUES (%d, '%s', '%s', %.4f, %d, %d, %d, '%s', %d, '%s', 1)`, user.Id, db.Escape(rp.Message), db.Escape(rp.Token.Address), req.TotalTokens, rp.GasPrice, rp.GasLimit, rp.Recipients, rp.FundTx, rp.FundTxStatus, db.Escape(rp.ExpireTime.Format("2006-01-02 15:04:05")))
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	rp.Id = ret.InsertId()
@@ -353,7 +366,7 @@ GROUP BY
 		params.Attachments = []slack.Attachment{attachment}
 		_, _, err := Service.Slack.PostMessage("G9Y7METUG", "new red packet", params)
 		if err != nil {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 		}
 	}
 
@@ -367,7 +380,7 @@ func prepareRedPacketRecipients(packetId uint64, recipients uint64, tokens uint6
 	db := Service.Db
 	rows, _, err := db.Query(`SELECT 1 FROM tokenme.red_packet_recipients WHERE red_packet_id=%d LIMIT 1`, packetId)
 	if err != nil {
-		log.Error(err.Error())
+		raven.CaptureError(err, nil)
 		return err
 	}
 	if len(rows) > 0 {
@@ -380,10 +393,12 @@ func prepareRedPacketRecipients(packetId uint64, recipients uint64, tokens uint6
 	}
 	_, _, err = db.Query(`INSERT INTO tokenme.red_packet_recipients (red_packet_id, give_out) VALUES %s`, strings.Join(val, ","))
 	if err != nil {
+		raven.CaptureError(err, nil)
 		return err
 	}
 	_, _, err = db.Query(`UPDATE tokenme.red_packets SET status=1, expire_time=DATE_ADD(NOW(), INTERVAL 3 DAY) WHERE id=%d`, packetId)
 	if err != nil {
+		raven.CaptureError(err, nil)
 		return err
 	}
 	return nil

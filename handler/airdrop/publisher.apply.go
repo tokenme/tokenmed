@@ -1,7 +1,10 @@
 package airdrop
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/mkideal/log"
+	"github.com/nlopes/slack"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
 	"github.com/ziutek/mymysql/mysql"
@@ -21,6 +24,31 @@ func PublisherApplyHandler(c *gin.Context) {
 	}
 	if CheckErr(err, c) {
 		return
+	}
+	if Service.Slack != nil {
+		params := slack.PostMessageParameters{}
+		attachment := slack.Attachment{
+			Color:      "#1976d2",
+			AuthorName: user.ShowName,
+			AuthorIcon: user.Avatar,
+			Fields: []slack.AttachmentField{
+				slack.AttachmentField{
+					Title: "Mobile",
+					Value: user.Mobile,
+					Short: true,
+				},
+				slack.AttachmentField{
+					Title: "CountryCode",
+					Value: fmt.Sprintf("%d", user.CountryCode),
+					Short: true,
+				},
+			},
+		}
+		params.Attachments = []slack.Attachment{attachment}
+		_, _, err = Service.Slack.PostMessage("G9Y7METUG", "new user applied for publisher", params)
+		if err != nil {
+			log.Error(err.Error())
+		}
 	}
 	c.JSON(http.StatusOK, APIResponse{Msg: "ok"})
 }

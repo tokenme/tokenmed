@@ -3,6 +3,7 @@ package user
 import (
 	//"github.com/davecgh/go-spew/spew"
 	"fmt"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
@@ -41,6 +42,7 @@ func UpdateHandler(c *gin.Context) {
 
 	_, _, err := db.Query(`UPDATE tokenme.users SET %s WHERE id=%d LIMIT 1`, strings.Join(updateFields, ","), user.Id)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse{Msg: "ok"})

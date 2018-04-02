@@ -5,6 +5,7 @@ import (
 	//"github.com/davecgh/go-spew/spew"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/garyburd/redigo/redis"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	cmc "github.com/miguelmota/go-coinmarketcap"
 	"github.com/mkideal/log"
@@ -76,6 +77,7 @@ INNER JOIN tokenme.tokens AS t ON (t.address=rp.token_address)
 WHERE rpr.user_id=%d%s`
 	rows, _, err := db.Query(query, user.Id, where, user.Id, where)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 
@@ -99,6 +101,7 @@ WHERE rpr.user_id=%d%s`
 		db := Service.Db
 		rows, _, err := db.Query(query, user.Id, where)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		row := rows[0]
@@ -177,7 +180,7 @@ AND rpr.status = 2
 GROUP BY
 	rp.token_address`, user.Id)
 		if CheckErr(err, c) {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 			return
 		}
 		for _, row := range rows {
@@ -207,7 +210,7 @@ WHERE
 GROUP BY
 	rp.token_address`, user.Id)
 		if CheckErr(err, c) {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 			return
 		}
 		for _, row := range rows {
@@ -245,7 +248,7 @@ AND rp.expire_time < NOW()
 GROUP BY
 	rp.token_address`, user.Id)
 		if CheckErr(err, c) {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 			return
 		}
 		for _, row := range rows {
@@ -275,6 +278,7 @@ GROUP BY
 	if !cashOnly {
 		ethBalance, err = Service.Geth.BalanceAt(c, ethcommon.HexToAddress(userWallet.Wallet), nil)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 	}
@@ -363,6 +367,7 @@ GROUP BY
 		if len(tokenQueryList) > 0 {
 			rows, _, err := db.Query(`SELECT address, name, symbol, decimals, price, logo, FROM tokenme.tokens WHERE address IN (%s)`, strings.Join(tokenQueryList, ","))
 			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
 				return
 			}
 			for _, row := range rows {
@@ -393,6 +398,7 @@ GROUP BY
 			for _, addr := range tokenAddrs {
 				tokenCaller, err := eth.NewTokenCaller(ethcommon.HexToAddress(addr), Service.Geth)
 				if CheckErr(err, c) {
+					raven.CaptureError(err, nil)
 					continue
 				}
 				tokenSymbol, err := tokenCaller.Symbol(nil)
@@ -423,7 +429,7 @@ GROUP BY
 				}
 				_, _, err = db.Query(`INSERT IGNORE INTO tokenme.tokens (address, name, symbol, decimals, protocol) VALUES %s`, strings.Join(vals, ","))
 				if err != nil {
-					log.Error(err.Error())
+					raven.CaptureError(err, nil)
 				}
 				tokens = append(tokens, newTokens...)
 			}
@@ -469,12 +475,12 @@ GROUP BY
 			if !cashOnly {
 				tokenHandler, err := ethutils.NewStandardToken(token.Address, Service.Geth)
 				if err != nil {
-					log.Error(err.Error())
+					raven.CaptureError(err, nil)
 					return
 				}
 				tokenBalance, err = ethutils.StandardTokenBalanceOf(tokenHandler, userWallet.Wallet)
 				if err != nil {
-					log.Error(err.Error())
+					raven.CaptureError(err, nil)
 					return
 				}
 			}
@@ -510,7 +516,7 @@ GROUP BY
 			for addr, price := range msetKeys {
 				err = redisMasterConn.Send("SETEX", fmt.Sprintf("coinprice-%s", addr), 60*60, price)
 				if err != nil {
-					log.Error(err.Error())
+					raven.CaptureError(err, nil)
 				}
 			}
 			redisMasterConn.Do("EXEC")

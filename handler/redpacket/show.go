@@ -3,9 +3,9 @@ package redpacket
 import (
 	"fmt"
 	"github.com/garyburd/redigo/redis"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	cmc "github.com/miguelmota/go-coinmarketcap"
-	"github.com/mkideal/log"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
 	"github.com/tokenme/tokenmed/tools/ethplorer-api"
@@ -30,6 +30,7 @@ func ShowHandler(c *gin.Context) {
 	db := Service.Db
 	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.message, FLOOR(a.total_tokens * 10000), IFNULL(t.address, ''), IFNULL(t.name, 'ETH'), IFNULL(t.symbol, 'Ether'), IFNULL(t.decimals, 18), a.recipients, a.expire_time, a.inserted, a.updated, IF(a.expire_time<NOW(), 6, a.status), u.id, u.country_code, u.mobile, u.realname, u.email, u.telegram_id, u.telegram_username, u.telegram_firstname, u.telegram_lastname, u.telegram_avatar, IFNULL(t.logo, 1), IFNULL(t.price, 0) FROM tokenme.red_packets AS a INNER JOIN tokenme.users AS u ON (u.id=a.user_id) LEFT JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.status > 0 AND a.id=%d`, redPacketId)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	if Check(len(rows) == 0, "missing red packet", c) {
@@ -136,6 +137,7 @@ func ShowHandler(c *gin.Context) {
 			rp.Status = common.RedPacketStatusAllTaken
 			_, _, err := db.Query(`UPDATE tokenme.red_packets SET status=2 WHERE id=%d`, rp.Id)
 			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
 				return
 			}
 		}
@@ -178,7 +180,7 @@ func getRedPacketRecipients(packetId uint64, decimals uint, userId uint64, teleg
 			LEFT JOIN tokenme.tokens AS t ON (t.address = rp.token_address)
 			WHERE rpr.red_packet_id=%d AND (rpr.user_id>0 OR rpr.telegram_id>0) ORDER BY rpr.submitted_time DESC`, packetId)
 	if err != nil {
-		log.Error(err.Error())
+		raven.CaptureError(err, nil)
 		return nil, err
 	}
 	var recipients []common.RedPacketRecipient

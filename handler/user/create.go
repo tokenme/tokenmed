@@ -2,6 +2,7 @@ package user
 
 import (
 	"fmt"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	"github.com/nu7hatch/gouuid"
 	"github.com/tokenme/tokenmed/coins/eth"
@@ -50,6 +51,7 @@ func CreateHandler(c *gin.Context) {
 	db := Service.Db
 	rows, _, err := db.Query(`SELECT 1 FROM tokenme.auth_verify_codes WHERE country_code=%d AND mobile='%s' AND code='%s' LIMIT 1`, req.CountryCode, db.Escape(mobile), db.Escape(req.VerifyCode))
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	if Check(len(rows) == 0, "unverified phone number", c) {
@@ -57,10 +59,12 @@ func CreateHandler(c *gin.Context) {
 	}
 	privateKey, _, err := eth.GenerateAccount()
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	walletSalt, wallet, err := utils.AddressEncrypt(privateKey, Config.TokenSalt)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	var telegram common.TelegramUser
@@ -73,11 +77,13 @@ func CreateHandler(c *gin.Context) {
 		return
 	}
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	userId := ret.InsertId()
 	_, _, err = db.Query(`INSERT IGNORE INTO tokenme.user_wallets (user_id, token_type, salt, wallet, name, is_private, is_main) VALUES (%d, 'ETH', '%s', '%s', 'SYS', 1, 1)`, userId, db.Escape(walletSalt), db.Escape(wallet))
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	if telegram.Id > 0 {
@@ -94,6 +100,7 @@ WHERE
 AND rpr.telegram_id = %d
 AND rpr.user_id IS NULL`, userId, req.CountryCode, db.Escape(mobile), telegram.Id)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 	}

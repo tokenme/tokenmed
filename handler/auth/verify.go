@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	. "github.com/tokenme/tokenmed/handler"
 	"github.com/tokenme/tokenmed/utils/twilio"
@@ -23,6 +24,7 @@ func VerifyHandler(c *gin.Context) {
 	db := Service.Db
 	rows, _, err := db.Query(`SELECT 1 FROM tokenme.auth_verify_codes WHERE country_code=%d AND mobile='%s' AND code='%s' LIMIT 1`, req.Country, db.Escape(mobile), db.Escape(req.Code))
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	if len(rows) > 0 {
@@ -31,6 +33,7 @@ func VerifyHandler(c *gin.Context) {
 	}
 	ret, err := twilio.AuthVerification(Config.TwilioToken, req.Mobile, req.Country, req.Code)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	if Check(!ret.Success, ret.Message, c) {
@@ -39,6 +42,7 @@ func VerifyHandler(c *gin.Context) {
 	_, _, err = db.Query(`DELETE FROM tokenme.auth_verify_codes WHERE country_code=%d AND mobile='%s'`, req.Country, db.Escape(mobile))
 	_, _, err = db.Query(`INSERT INTO tokenme.auth_verify_codes (country_code, mobile, code) VALUES (%d, '%s', '%s') ON DUPLICATE KEY UPDATE inserted=NOW()`, req.Country, db.Escape(mobile), db.Escape(req.Code))
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	c.JSON(http.StatusOK, APIResponse{Msg: "ok"})

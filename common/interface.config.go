@@ -23,6 +23,7 @@ type Config struct {
 	TelegramBotName              string `required:"true"`
 	WXAppId                      string `required:"true"`
 	WXSecret                     string `required:"true"`
+	SentryDSN                    string `default:"https://b7c6f2e4200a444c99f6b92aca5c372c:849b8bfea55c4d4cbca578ec68a861bb@sentry.io/994357"`
 	AirdropCommissionFee         uint64 `default:"4"`
 	RedPacketCommissionFee       uint64 `default:"50"`
 	DealerIncomeWallet           string `required:"true"`

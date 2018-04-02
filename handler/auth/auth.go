@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	//"github.com/davecgh/go-spew/spew"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	"github.com/mkideal/log"
 	"github.com/nu7hatch/gouuid"
@@ -27,19 +28,19 @@ var AuthenticatorFunc = func(loginInfo jwt.Login, c *gin.Context) (string, bool)
 	if loginInfo.Wechat != "" {
 		resp, err := http.Get(fmt.Sprintf(WX_AUTH_GATEWAY, Config.WXAppId, Config.WXSecret, loginInfo.Wechat))
 		if err != nil {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 			return loginInfo.Wechat, false
 		}
 		defer resp.Body.Close()
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 			return loginInfo.Wechat, false
 		}
 		var oauth common.WechatOAuth
 		err = json.Unmarshal(body, &oauth)
 		if err != nil {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 			return loginInfo.Wechat, false
 		}
 		if oauth.OpenId == "" || oauth.SessionKey == "" {
@@ -53,7 +54,7 @@ var AuthenticatorFunc = func(loginInfo jwt.Login, c *gin.Context) (string, bool)
 		sessionKey := utils.Sha1(fmt.Sprintf("%s%s%s", token, oauth.OpenId, oauth.SessionKey))
 		_, _, err = db.Query(`INSERT INTO tokenme.wx_oauth (open_id, k, session_key) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE k=VALUES(k), session_key=VALUES(session_key)`, db.Escape(oauth.OpenId), db.Escape(sessionKey), db.Escape(oauth.SessionKey))
 		if err != nil {
-			log.Error(err.Error())
+			raven.CaptureError(err, nil)
 			return loginInfo.Wechat, false
 		}
 		return fmt.Sprintf("#wechat#%s", sessionKey), true
@@ -64,6 +65,7 @@ var AuthenticatorFunc = func(loginInfo jwt.Login, c *gin.Context) (string, bool)
 		}
 		telegram, err := telegramUtils.ParseTelegramAuth(loginInfo.Telegram)
 		if err != nil {
+			raven.CaptureError(err, nil)
 			return loginInfo.Username, false
 		}
 		where = fmt.Sprintf("telegram_id=%d", telegram.Id)
@@ -166,7 +168,7 @@ var AuthorizatorFunc = func(username string, c *gin.Context) bool {
 		rows, _, err := db.Query(query, db.Escape(sessionKey))
 		if err != nil || len(rows) == 0 {
 			if err != nil {
-				log.Error(err.Error())
+				raven.CaptureError(err, nil)
 			}
 			return false
 		}
@@ -207,7 +209,7 @@ var AuthorizatorFunc = func(username string, c *gin.Context) bool {
 		rows, _, err := db.Query(query, countryCode, db.Escape(mobile))
 		if err != nil || len(rows) == 0 {
 			if err != nil {
-				log.Error(err.Error())
+				raven.CaptureError(err, nil)
 			}
 			return false
 		}

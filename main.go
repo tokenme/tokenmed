@@ -5,6 +5,7 @@ import (
 	"fmt"
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/fvbock/endless"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/configor"
 	"github.com/mkideal/log"
@@ -51,6 +52,7 @@ func main() {
 
 	defer log.Uninit(log.InitMultiFileAndConsole(path.Join(wd, config.LogPath), "tokenmed.log", log.LvERROR))
 
+	raven.SetDSN(config.SentryDSN)
 	service := common.NewService(config)
 	defer service.Close()
 	service.Db.Reconnect()

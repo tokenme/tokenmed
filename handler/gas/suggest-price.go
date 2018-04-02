@@ -1,6 +1,7 @@
 package gas
 
 import (
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	. "github.com/tokenme/tokenmed/handler"
 	"math/big"
@@ -15,6 +16,7 @@ func SuggestPriceHandler(c *gin.Context) {
 	}
 	price, err := geth.SuggestGasPrice(c)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	c.JSON(http.StatusOK, map[string]*big.Int{"price": price})

@@ -2,6 +2,7 @@ package redpacket
 
 import (
 	"fmt"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
@@ -34,6 +35,7 @@ func SubmitHandler(c *gin.Context) {
 		telegram, _ = telegramUtils.ParseTelegramAuth(req.Telegram)
 		rows, _, err := db.Query(`SELECT id, country_code, mobile FROM tokenme.users WHERE telegram_id=%d LIMIT 1`, telegram.Id)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		if len(rows) > 0 {
@@ -62,6 +64,7 @@ func SubmitHandler(c *gin.Context) {
 		return
 	}
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	if ret.AffectedRows() == 0 {
@@ -72,12 +75,14 @@ func SubmitHandler(c *gin.Context) {
 	if user.Id > 0 {
 		rows, _, err := db.Query(`SELECT give_out FROM tokenme.red_packet_recipients WHERE red_packet_id=%d AND user_id=%d LIMIT 1`, req.RedPacketId, user.Id)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		giveOut = rows[0].ForceFloat(0)
 	} else {
 		rows, _, err := db.Query(`SELECT give_out FROM tokenme.red_packet_recipients WHERE red_packet_id=%d AND telegram_id=%d LIMIT 1`, req.RedPacketId, telegram.Id)
 		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
 			return
 		}
 		giveOut = rows[0].ForceFloat(0)

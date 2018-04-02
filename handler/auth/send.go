@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	. "github.com/tokenme/tokenmed/handler"
 	"github.com/tokenme/tokenmed/utils/twilio"
@@ -21,6 +22,7 @@ func SendHandler(c *gin.Context) {
 	mobile := strings.Replace(req.Mobile, " ", "", 0)
 	ret, err := twilio.AuthSend(Config.TwilioToken, mobile, req.Country)
 	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
 		return
 	}
 	if Check(!ret.Success, ret.Message, c) {
