@@ -90,10 +90,17 @@ func WechatHandler(c *gin.Context) {
 	}
 	userId := ret.InsertId()
 	if userId > 0 {
-		_, _, err = db.Query(`INSERT INTO tokenme.user_wallets (user_id, token_type, salt, wallet, name, is_private, is_main) VALUES (%d, 'ETH', '%s', '%s', 'SYS', 1, 1)`, userId, db.Escape(walletSalt), db.Escape(wallet))
+		rows, _, err := db.Query(`SELECT 1 FROM tokenme.user_wallets WHERE user_id=%d AND token_type='ETH' LIMIT 1`, userId)
 		if CheckErr(err, c) {
 			raven.CaptureError(err, nil)
 			return
+		}
+		if len(rows) == 0 {
+			_, _, err = db.Query(`INSERT INTO tokenme.user_wallets (user_id, token_type, salt, wallet, name, is_private, is_main) VALUES (%d, 'ETH', '%s', '%s', 'SYS', 1, 1)`, userId, db.Escape(walletSalt), db.Escape(wallet))
+			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
+				return
+			}
 		}
 	}
 	c.JSON(http.StatusOK, APIResponse{Msg: "ok"})

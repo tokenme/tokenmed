@@ -1,8 +1,8 @@
 package redpacket
 
 import (
-	//"github.com/davecgh/go-spew/spew"
 	"fmt"
+	//"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/getsentry/raven-go"
@@ -26,11 +26,15 @@ type AddRequest struct {
 	Recipients   uint    `form:"recipients" json:"recipients" binding:"required"`
 	TotalTokens  float64 `form:"total_tokens" json:"total_tokens" binding:"required"`
 	WalletId     uint64  `form:"wallet_id" json:"wallet_id" binding:"required"`
+	From         string  `form:"from" json:"from" binding:"required"`
 }
 
 func AddHandler(c *gin.Context) {
 	var req AddRequest
 	if CheckErr(c.Bind(&req), c) {
+		return
+	}
+	if Check(req.From != "cash" && req.From != "wallet", "from 'cash' or 'wallet'?", c) {
 		return
 	}
 	userContext, exists := c.Get("USER")
@@ -68,11 +72,17 @@ func AddHandler(c *gin.Context) {
 	if Check(token.Decimals >= 4 && req.TotalTokens < 0.001 || token.Decimals < 4 && req.TotalTokens < 10, "not enough tokens", c) {
 		return
 	}
-	var totalTokens *big.Int
+	var (
+		totalTokens        *big.Int
+		totalTokensForSave *big.Int
+	)
 	if token.Decimals >= 4 {
-		totalTokens = new(big.Int).Mul(new(big.Int).SetUint64(uint64(req.TotalTokens)), utils.Pow40)
+		totalTokensForSave = new(big.Int).SetUint64(uint64(req.TotalTokens * float64(utils.Pow40.Uint64())))
+		totalTokens = new(big.Int).Mul(totalTokensForSave, utils.Pow10(int(token.Decimals)))
+		totalTokens = new(big.Int).Div(totalTokens, utils.Pow40)
 	} else {
-		totalTokens = new(big.Int).SetUint64(uint64(req.TotalTokens))
+		totalTokensForSave = new(big.Int).SetUint64(uint64(req.TotalTokens))
+		totalTokens = new(big.Int).Mul(totalTokensForSave, utils.Pow10(int(token.Decimals)))
 	}
 	now := time.Now()
 	rp := common.RedPacket{
@@ -90,15 +100,13 @@ func AddHandler(c *gin.Context) {
 	if Check(req.WalletId == 0, "missing wallet", c) {
 		return
 	}
-	var (
-		redPacketIncome      = big.NewInt(0)
-		redPacketOutcomeLeft = big.NewInt(0)
-		redPacketCashOutput  = big.NewInt(0)
-		tokenCash            *big.Int
-		useCashOrWallet      = "cash"
-	)
-
-	{
+	if req.From == "cash" {
+		var (
+			redPacketIncome      = big.NewInt(0)
+			redPacketOutcomeLeft = big.NewInt(0)
+			redPacketCashOutput  = big.NewInt(0)
+			tokenCash            *big.Int
+		)
 		rows, _, err := db.Query(`SELECT
 	rp.token_address ,
 	SUM(rpr.give_out),
@@ -164,7 +172,7 @@ AND d.token_address='%s' GROUP BY d.token_address`, user.Id, req.TokenAddress)
 
 		rows, _, err = db.Query(`SELECT
 	rp.token_address ,
-	SUM(rp.total_tokens) - SUM(IF(rp.fund_tx_status = 0 AND rp.expire_time >= NOW(), rp.total_tokens, 0)) AS unexpired_outcome_left,
+	SUM(IF(rp.expire_time < NOW(), rp.total_tokens, 0)) AS expired_outcome,
 	SUM(IF(rp.fund_tx_status = 0, rp.total_tokens, 0)) AS cash_output,
 	IF(ISNULL(t.address), 18, t.decimals) AS decimals
 FROM
@@ -200,7 +208,7 @@ GROUP BY
 
 		rows, _, err = db.Query(`SELECT
 	rp.token_address,
-	SUM(IFNULL(rpr.give_out, 0)) AS expired_outcome,
+	SUM(IFNULL(rpr.give_out, 0)) AS expired_giveout,
 	IF(ISNULL(t.address), 18, t.decimals) AS decimals
 FROM
 	tokenme.red_packet_recipients AS rpr
@@ -240,30 +248,51 @@ GROUP BY
 		} else {
 			tokenCash = new(big.Int).Sub(tokenCash, redPacketCashOutput)
 		}
-	}
 
-	query := `SELECT
-            uw.wallet,
-            uw.salt,
-            uw.is_private
-        FROM tokenme.user_wallets AS uw
-        WHERE uw.user_id=%d AND id=%d`
-	rows, _, err := db.Query(query, user.Id, req.WalletId)
-	if CheckErr(err, c) {
-		raven.CaptureError(err, nil)
-		return
-	}
-	row := rows[0]
-	walletAddress := row.Str(0)
-	walletSalt := row.Str(1)
-	isPrivate := row.Uint(2)
-	if Check(isPrivate != 1, "this wallet can't create red packet", c) {
-		return
-	}
-	walletPrivateKey, _ := utils.AddressDecrypt(walletAddress, walletSalt, Config.TokenSalt)
-	walletPublicKey, _ := eth.AddressFromHexPrivateKey(walletPrivateKey)
-	if tokenCash.Cmp(totalTokens) == -1 { // NOT ENOUGH CASH need to use Wallet balannce
-		useCashOrWallet = "wallet"
+		if tokenCash.Cmp(big.NewInt(0)) != 1 || tokenCash.Cmp(totalTokens) == -1 {
+			if req.TokenAddress != "" {
+				c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%.4f", req.TotalTokens)})
+				return
+			} else {
+				totalTokensGwei := new(big.Int).Div(totalTokens, big.NewInt(params.Shannon))
+				c.JSON(http.StatusOK, APIError{Code: 502, Msg: fmt.Sprintf("%d", totalTokensGwei.Uint64())})
+				return
+			}
+		}
+	} else if req.From == "wallet" {
+
+		query := `SELECT
+	            uw.wallet,
+	            uw.salt,
+	            uw.is_private
+	        FROM tokenme.user_wallets AS uw
+	        WHERE uw.user_id=%d AND id=%d`
+		rows, _, err := db.Query(query, user.Id, req.WalletId)
+		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
+			return
+		}
+		row := rows[0]
+		walletAddress := row.Str(0)
+		walletSalt := row.Str(1)
+		isPrivate := row.Uint(2)
+		if Check(isPrivate != 1, "this wallet can't create red packet", c) {
+			return
+		}
+		walletPrivateKey, _ := utils.AddressDecrypt(walletAddress, walletSalt, Config.TokenSalt)
+		walletPublicKey, _ := eth.AddressFromHexPrivateKey(walletPrivateKey)
+		if req.TokenAddress != "" {
+			tokenBalance, err := ethutils.BalanceOfToken(Service.Geth, rp.Token.Address, walletPublicKey)
+			if CheckErr(err, c) {
+				raven.CaptureError(err, nil)
+				return
+			}
+			if tokenBalance.Cmp(big.NewInt(0)) != 1 || tokenBalance.Cmp(totalTokens) == -1 {
+				c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%.4f", req.TotalTokens)})
+				return
+			}
+		}
+
 		ethBalance, err := eth.BalanceOf(Service.Geth, c, walletPublicKey)
 		if CheckErr(err, c) {
 			raven.CaptureError(err, nil)
@@ -272,29 +301,15 @@ GROUP BY
 		minGasLimit := new(big.Int).SetUint64(rp.GasPrice * rp.GasLimit)
 		var minETHGwei *big.Int
 		if req.TokenAddress == "" {
-			minETHGwei = new(big.Int).Add(minGasLimit, totalTokens)
+			totalTokensGwei := new(big.Int).Div(totalTokens, big.NewInt(params.Shannon))
+			minETHGwei = new(big.Int).Add(minGasLimit, totalTokensGwei)
 		} else {
 			minETHGwei = minGasLimit
 		}
 		minETHWei := new(big.Int).Mul(minETHGwei, big.NewInt(params.Shannon))
-		if ethBalance.Cmp(minETHWei) == -1 {
+		if ethBalance.Cmp(big.NewInt(0)) != 1 || ethBalance.Cmp(minETHWei) == -1 {
 			c.JSON(http.StatusOK, APIError{Code: 502, Msg: fmt.Sprintf("%d", minETHGwei.Uint64())})
 			return
-		}
-		if req.TokenAddress != "" {
-			tokenBalance, err := ethutils.BalanceOfToken(Service.Geth, rp.Token.Address, walletPublicKey)
-			if CheckErr(err, c) {
-				raven.CaptureError(err, nil)
-				return
-			}
-			tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(rp.Token.Decimals)))
-			if rp.Token.Decimals >= 4 {
-				tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
-			}
-			if tokenBalance.Cmp(tokenValue) == -1 {
-				c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%.4f", req.TotalTokens)})
-				return
-			}
 		}
 
 		transactor := eth.TransactorAccount(walletPrivateKey)
@@ -318,20 +333,15 @@ GROUP BY
 				raven.CaptureError(err, nil)
 				return
 			}
-			tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(rp.Token.Decimals)))
-			if rp.Token.Decimals >= 4 {
-				tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
-			}
-			tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, tokenValue)
+			tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, totalTokens)
 			if CheckErr(err, c) {
 				raven.CaptureError(err, nil)
 				return
 			}
 		} else {
-			value := new(big.Int).Mul(totalTokens, big.NewInt(params.Shannon))
 			transactorOpts := eth.TransactorOptions{
 				Nonce:    nonce,
-				Value:    value,
+				Value:    totalTokens,
 				GasPrice: gasPrice,
 				GasLimit: rp.GasLimit,
 			}
@@ -345,7 +355,7 @@ GROUP BY
 		txHash := tx.Hash()
 		rp.FundTx = txHash.Hex()
 		rp.FundTxStatus = 1
-		_, _, err = db.Query(`INSERT IGNORE INTO tokenme.user_tx (tx, user_id, from_addr, to_addr, token_address, tokens, eth) VALUES ('%s', %d, '%s', '%s', '%s', %d, 0)`, rp.FundTx, user.Id, walletPublicKey, Config.RedPacketIncomeWallet, rp.Token.Address, totalTokens.Uint64())
+		_, _, err = db.Query(`INSERT IGNORE INTO tokenme.user_tx (tx, user_id, from_addr, to_addr, token_address, tokens, eth) VALUES ('%s', %d, '%s', '%s', '%s', %.4f, 0)`, rp.FundTx, user.Id, walletPublicKey, Config.RedPacketIncomeWallet, rp.Token.Address, req.TotalTokens)
 		if CheckErr(err, c) {
 			raven.CaptureError(err, nil)
 			return
@@ -358,7 +368,7 @@ GROUP BY
 		return
 	}
 	rp.Id = ret.InsertId()
-	err = prepareRedPacketRecipients(rp.Id, uint64(rp.Recipients), totalTokens.Uint64())
+	err = prepareRedPacketRecipients(rp.Id, uint64(rp.Recipients), totalTokensForSave.Uint64())
 	if CheckErr(err, c) {
 		return
 	}
@@ -393,7 +403,7 @@ GROUP BY
 				},
 				slack.AttachmentField{
 					Title: "FROM",
-					Value: useCashOrWallet,
+					Value: req.From,
 					Short: true,
 				},
 			},

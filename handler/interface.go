@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
 	"github.com/mkideal/log"
 	"github.com/tokenme/tokenmed/common"
@@ -23,6 +24,7 @@ func InitHandler(s *common.Service, c common.Config, t *tracker.Tracker) {
 	Service = s
 	Config = c
 	Tracker = t
+	raven.SetDSN(Config.SentryDSN)
 }
 
 type APIResponse struct {

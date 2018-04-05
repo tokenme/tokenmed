@@ -28,7 +28,7 @@ func ShowHandler(c *gin.Context) {
 	}
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.message, FLOOR(a.total_tokens * 10000), IFNULL(t.address, ''), IFNULL(t.name, 'ETH'), IFNULL(t.symbol, 'Ether'), IFNULL(t.decimals, 18), a.recipients, a.expire_time, a.inserted, a.updated, IF(a.expire_time<NOW(), 6, a.status), u.id, u.country_code, u.mobile, u.realname, u.email, u.telegram_id, u.telegram_username, u.telegram_firstname, u.telegram_lastname, u.telegram_avatar, IFNULL(t.logo, 1), IFNULL(t.price, 0) FROM tokenme.red_packets AS a INNER JOIN tokenme.users AS u ON (u.id=a.user_id) LEFT JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.status > 0 AND a.id=%d`, redPacketId)
+	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.message, FLOOR(a.total_tokens * 10000), IFNULL(t.address, ''), IFNULL(t.name, 'ETH'), IFNULL(t.symbol, 'Ether'), IFNULL(t.decimals, 18), a.recipients, a.expire_time, a.inserted, a.updated, IF(a.expire_time<NOW(), 6, a.status), u.id, u.country_code, u.mobile, u.realname, u.email, u.telegram_id, u.telegram_username, u.telegram_firstname, u.telegram_lastname, u.telegram_avatar, IFNULL(t.logo, 1), IFNULL(t.price, 0), u.wx_nick, u.wx_avatar FROM tokenme.red_packets AS a INNER JOIN tokenme.users AS u ON (u.id=a.user_id) LEFT JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.status > 0 AND a.id=%d`, redPacketId)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
@@ -51,6 +51,14 @@ func ShowHandler(c *gin.Context) {
 			Lastname:  row.Str(21),
 			Avatar:    row.Str(22),
 		},
+	}
+	wxNick := row.Str(25)
+	if wxNick != "" {
+		wechat := &common.WechatUser{
+			Nick:   wxNick,
+			Avatar: row.Str(26),
+		}
+		redPacketUser.Wechat = wechat
 	}
 	redPacketUser.ShowName = redPacketUser.GetShowName()
 	redPacketUser.Avatar = redPacketUser.GetAvatar(Config.CDNUrl)
@@ -171,6 +179,8 @@ func getRedPacketRecipients(packetId uint64, decimals uint, userId uint64, teleg
 				IFNULL(u.telegram_firstname, IFNULL(rpr.telegram_firstname, '')),
 				IFNULL(u.telegram_lastname, IFNULL(rpr.telegram_lastname, '')),
 				IFNULL(u.telegram_avatar, IFNULL(rpr.telegram_avatar, '')),
+				IFNULL(u.wx_nick, ''),
+				IFNULL(u.wx_avatar, ''),
 				rp.user_id,
 				rpr.status,
 				rpr.submitted_time 
@@ -185,7 +195,7 @@ func getRedPacketRecipients(packetId uint64, decimals uint, userId uint64, teleg
 	}
 	var recipients []common.RedPacketRecipient
 	for _, row := range rows {
-		rpUserId := row.Uint64(14)
+		rpUserId := row.Uint64(16)
 		user := common.User{
 			Id:          row.Uint64(4),
 			CountryCode: row.Uint(5),
@@ -199,6 +209,14 @@ func getRedPacketRecipients(packetId uint64, decimals uint, userId uint64, teleg
 				Lastname:  row.Str(12),
 				Avatar:    row.Str(13),
 			},
+		}
+		wxNick := row.Str(14)
+		if wxNick != "" {
+			wechat := &common.WechatUser{
+				Nick:   wxNick,
+				Avatar: row.Str(15),
+			}
+			user.Wechat = wechat
 		}
 		user.Avatar = user.GetAvatar(Config.CDNUrl)
 		if userId != user.Id && userId != rpUserId && user.Mobile != "" {
@@ -221,9 +239,9 @@ func getRedPacketRecipients(packetId uint64, decimals uint, userId uint64, teleg
 			Id:            row.Uint64(0),
 			GiveOut:       giveOut,
 			User:          user,
-			Status:        row.Uint(15),
+			Status:        row.Uint(17),
 			Decimals:      uint(decimals),
-			SubmittedTime: row.ForceLocaltime(16),
+			SubmittedTime: row.ForceLocaltime(18),
 		})
 	}
 	return recipients, nil

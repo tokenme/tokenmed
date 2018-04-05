@@ -239,7 +239,7 @@ GROUP BY
 
 		rows, _, err = db.Query(`SELECT
 	rp.token_address ,
-	SUM(rp.total_tokens) - SUM(IF(rp.fund_tx_status = 0 AND rp.expire_time >= NOW(), rp.total_tokens, 0)) AS unexpired_outcome_left,
+	SUM(IF(rp.expire_time < NOW(), rp.total_tokens, 0)) AS expired_outcome,
 	SUM(IF(rp.fund_tx_status = 0, rp.total_tokens, 0)) AS cash_output,
 	IF(ISNULL(t.address), 18, t.decimals) AS decimals
 FROM
@@ -275,7 +275,7 @@ GROUP BY
 
 		rows, _, err = db.Query(`SELECT
 	rp.token_address,
-	SUM(IFNULL(rpr.give_out, 0)) AS expired_outcome,
+	SUM(IFNULL(rpr.give_out, 0)) AS expired_giveout,
 	IF(ISNULL(t.address), 18, t.decimals) AS decimals
 FROM
 	tokenme.red_packet_recipients AS rpr

@@ -59,11 +59,17 @@ func DepositHandler(c *gin.Context) {
 			Protocol: "ETH",
 		}
 	}
-	var totalTokens *big.Int
+	var (
+		totalTokens        *big.Int
+		totalTokensForSave *big.Int
+	)
 	if token.Decimals >= 4 {
-		totalTokens = new(big.Int).Mul(new(big.Int).SetUint64(uint64(req.TotalTokens)), utils.Pow40)
+		totalTokensForSave = new(big.Int).SetUint64(uint64(req.TotalTokens * float64(utils.Pow40.Uint64())))
+		totalTokens = new(big.Int).Mul(totalTokensForSave, utils.Pow10(int(token.Decimals)))
+		totalTokens = new(big.Int).Div(totalTokens, utils.Pow40)
 	} else {
-		totalTokens = new(big.Int).SetUint64(uint64(req.TotalTokens))
+		totalTokensForSave = new(big.Int).SetUint64(uint64(req.TotalTokens))
+		totalTokens = new(big.Int).Mul(totalTokensForSave, utils.Pow10(int(token.Decimals)))
 	}
 
 	query := `SELECT
@@ -95,12 +101,13 @@ func DepositHandler(c *gin.Context) {
 	minGasLimit := new(big.Int).SetUint64(Config.RedPacketGasPrice * Config.RedPacketGasLimit)
 	var minETHGwei *big.Int
 	if req.TokenAddress == "" {
-		minETHGwei = new(big.Int).Add(minGasLimit, totalTokens)
+		totalTokensGwei := new(big.Int).Div(totalTokens, big.NewInt(params.Shannon))
+		minETHGwei = new(big.Int).Add(minGasLimit, totalTokensGwei)
 	} else {
 		minETHGwei = minGasLimit
 	}
 	minETHWei := new(big.Int).Mul(minETHGwei, big.NewInt(params.Shannon))
-	if ethBalance.Cmp(minETHWei) == -1 {
+	if ethBalance.Cmp(big.NewInt(0)) != 1 || ethBalance.Cmp(minETHWei) == -1 {
 		c.JSON(http.StatusOK, APIError{Code: 502, Msg: fmt.Sprintf("%d", minETHGwei.Uint64())})
 		return
 	}
@@ -110,11 +117,7 @@ func DepositHandler(c *gin.Context) {
 			raven.CaptureError(err, nil)
 			return
 		}
-		tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(token.Decimals)))
-		if token.Decimals >= 4 {
-			tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
-		}
-		if tokenBalance.Cmp(tokenValue) == -1 {
+		if tokenBalance.Cmp(big.NewInt(0)) != 1 || tokenBalance.Cmp(totalTokens) == -1 {
 			c.JSON(http.StatusOK, APIError{Code: 503, Msg: fmt.Sprintf("%.4f", req.TotalTokens)})
 			return
 		}
@@ -140,20 +143,15 @@ func DepositHandler(c *gin.Context) {
 			raven.CaptureError(err, nil)
 			return
 		}
-		tokenValue := new(big.Int).Mul(totalTokens, utils.Pow10(int(token.Decimals)))
-		if token.Decimals >= 4 {
-			tokenValue = new(big.Int).Div(tokenValue, utils.Pow40)
-		}
-		tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, tokenValue)
+		tx, err = ethutils.Transfer(tokenHandler, transactor, Config.RedPacketIncomeWallet, totalTokens)
 		if CheckErr(err, c) {
 			raven.CaptureError(err, nil)
 			return
 		}
 	} else {
-		value := new(big.Int).Mul(totalTokens, big.NewInt(params.Shannon))
 		transactorOpts := eth.TransactorOptions{
 			Nonce:    nonce,
-			Value:    value,
+			Value:    totalTokens,
 			GasPrice: gasPrice,
 			GasLimit: Config.RedPacketGasLimit,
 		}
@@ -171,7 +169,7 @@ func DepositHandler(c *gin.Context) {
 		raven.CaptureError(err, nil)
 		return
 	}
-	_, _, err = db.Query(`INSERT INTO tokenme.user_tx (tx, user_id, from_addr, to_addr, token_address, tokens, eth) VALUES ('%s', %d, '%s', '%s', '%s', %d, 0)`, fundTx, user.Id, walletPublicKey, Config.RedPacketIncomeWallet, token.Address, totalTokens.Uint64())
+	_, _, err = db.Query(`INSERT INTO tokenme.user_tx (tx, user_id, from_addr, to_addr, token_address, tokens, eth) VALUES ('%s', %d, '%s', '%s', '%s', %.4f, 0)`, fundTx, user.Id, walletPublicKey, Config.RedPacketIncomeWallet, token.Address, req.TotalTokens)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
