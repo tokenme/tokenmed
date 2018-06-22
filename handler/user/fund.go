@@ -360,7 +360,7 @@ GROUP BY
 	if ethFund.Amount.Cmp(big.NewInt(0)) == 1 || ethFund.Cash.Cmp(big.NewInt(0)) == 1 {
 		coinPrice, err := redis.Float64(redisMasterConn.Do("GET", "coinprice-eth"))
 		if err != nil || coinPrice == 0 {
-			coinPrice, err := cmc.GetCoinPriceUSD("ethereum")
+			coinPrice, err := cmc.Price(&cmc.PriceOptions{Symbol: "ethereum"})
 			if err == nil {
 				ethFund.Token.Price.Rate = coinPrice
 				redisMasterConn.Do("SETEX", "coinprice-eth", 60*60, coinPrice)
@@ -520,7 +520,7 @@ GROUP BY
 				var coinId = token.Name
 				coinId = strings.ToLower(coinId)
 				coinId = strings.Replace(coinId, " ", "-", 0)
-				coinPrice, err := cmc.GetCoinPriceUSD(coinId)
+				coinPrice, err := cmc.Price(&cmc.PriceOptions{Symbol: coinId})
 				if err == nil && coinPrice != 0 {
 					token.Price = &ethplorer.TokenPrice{Rate: coinPrice, Currency: "USD"}
 					msetKeys[token.Address] = coinPrice

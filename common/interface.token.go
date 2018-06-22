@@ -2,7 +2,7 @@ package common
 
 import (
 	"fmt"
-	cmc "github.com/miguelmota/go-coinmarketcap"
+	cmc "github.com/miguelmota/go-coinmarketcap/types"
 	"github.com/tokenme/tokenmed/tools/ethplorer-api"
 )
 
@@ -23,7 +23,7 @@ type Token struct {
 	Twitter     string                `json:"twitter,omitempty"`
 	Whitepaper  string                `json:"whitepaper,omitempty"`
 	Email       string                `json:"email,omitempty"`
-	Graph       cmc.CoinGraph         `json:"graph,omitempty"`
+	Graph       cmc.TickerGraph       `json:"graph,omitempty"`
 }
 
 func (this Token) GetLogoAddress(cdn string) string {
@@ -36,4 +36,12 @@ func (this Token) GetLogoAddress(cdn string) string {
 		addr = this.Address
 	}
 	return fmt.Sprintf("%simg/token/%s.png", cdn, addr)
+}
+
+type TokenMarket struct {
+	PriceUSD          float64 `json:"price_usd"`
+	TotalSupply       float64 `json:"total_supply"`
+	CirculatingSupply float64 `json:"available_supply"`
+	MarketCapUSD      float64 `json:"market_cap_usd"`
+	Volume24H         float64 `json:"24h_volume_usd"`
 }

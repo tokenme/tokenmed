@@ -50,6 +50,7 @@ type PromotionProto struct {
 	AirdropId uint64 `json:"airdrop_id"`
 	AdzoneId  uint64 `json:"adzone_id"`
 	ChannelId uint64 `json:"channel_id"`
+	Referrer  string `json:"referrer"`
 }
 
 func EncodePromotion(key []byte, proto PromotionProto) (string, error) {

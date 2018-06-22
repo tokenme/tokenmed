@@ -96,7 +96,7 @@ func ShowHandler(c *gin.Context) {
 	if token.Name == "ETH" {
 		coinPrice, err := redis.Float64(redisMasterConn.Do("GET", "coinprice-eth"))
 		if err != nil || coinPrice == 0 {
-			coinPrice, err := cmc.GetCoinPriceUSD("ethereum")
+			coinPrice, err := cmc.Price(&cmc.PriceOptions{Symbol: "ethereum"})
 			if err == nil {
 				token.Price = &ethplorer.TokenPrice{Currency: "USD", Rate: coinPrice}
 				redisMasterConn.Do("SETEX", "coinprice-eth", 60*60, coinPrice)
@@ -113,7 +113,7 @@ func ShowHandler(c *gin.Context) {
 			var coinId = token.Name
 			coinId = strings.ToLower(coinId)
 			coinId = strings.Replace(coinId, " ", "-", 0)
-			coinPrice, err = cmc.GetCoinPriceUSD(coinId)
+			coinPrice, err = cmc.Price(&cmc.PriceOptions{Symbol: coinId})
 			if err == nil && coinPrice != 0 {
 				token.Price = &ethplorer.TokenPrice{Rate: coinPrice, Currency: "USD"}
 				redisMasterConn.Do("SETEX", redisKey, 60*60, coinPrice)

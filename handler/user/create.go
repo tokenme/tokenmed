@@ -10,6 +10,7 @@ import (
 	. "github.com/tokenme/tokenmed/handler"
 	telegramUtils "github.com/tokenme/tokenmed/tools/telegram"
 	"github.com/tokenme/tokenmed/utils"
+	"github.com/tokenme/tokenmed/utils/twilio"
 	"github.com/ziutek/mymysql/mysql"
 	"net/http"
 	"strings"
@@ -48,15 +49,16 @@ func CreateHandler(c *gin.Context) {
 	activationCode := utils.Sha1(token.String())
 	passwd := utils.Sha1(fmt.Sprintf("%s%s%s", salt, req.Password, salt))
 	mobile := strings.Replace(req.Mobile, " ", "", 0)
-	db := Service.Db
-	rows, _, err := db.Query(`SELECT 1 FROM tokenme.auth_verify_codes WHERE country_code=%d AND mobile='%s' AND code='%s' LIMIT 1`, req.CountryCode, db.Escape(mobile), db.Escape(req.VerifyCode))
+
+	retTwilio, err := twilio.AuthVerification(Config.TwilioToken, mobile, req.CountryCode, req.VerifyCode)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
 	}
-	if Check(len(rows) == 0, "unverified phone number", c) {
+	if Check(!retTwilio.Success, retTwilio.Message, c) {
 		return
 	}
+
 	privateKey, _, err := eth.GenerateAccount()
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
@@ -71,6 +73,7 @@ func CreateHandler(c *gin.Context) {
 	if req.Telegram != "" && telegramUtils.TelegramAuthCheck(req.Telegram, Config.TelegramBotToken) {
 		telegram, _ = telegramUtils.ParseTelegramAuth(req.Telegram)
 	}
+	db := Service.Db
 	_, ret, err := db.Query(`INSERT INTO tokenme.users (country_code, mobile, passwd, salt, activation_code, active, telegram_id, telegram_username, telegram_firstname, telegram_lastname, telegram_avatar) VALUES (%d, '%s', '%s', '%s', '%s', 1, %d, '%s', '%s', '%s', '%s')`, req.CountryCode, db.Escape(mobile), db.Escape(passwd), db.Escape(salt), db.Escape(activationCode), telegram.Id, db.Escape(telegram.Username), db.Escape(telegram.Firstname), db.Escape(telegram.Lastname), db.Escape(telegram.Avatar))
 	if err != nil && err.(*mysql.Error).Code == mysql.ER_DUP_ENTRY {
 		c.JSON(http.StatusOK, APIResponse{Msg: "account already exists"})

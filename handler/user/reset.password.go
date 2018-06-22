@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	. "github.com/tokenme/tokenmed/handler"
 	"github.com/tokenme/tokenmed/utils"
+	"github.com/tokenme/tokenmed/utils/twilio"
 	"net/http"
 	"strings"
 )
@@ -32,17 +33,17 @@ func ResetPasswordHandler(c *gin.Context) {
 	}
 	mobile := strings.Replace(req.Mobile, " ", "", 0)
 
-	db := Service.Db
-	rows, _, err := db.Query(`SELECT 1 FROM tokenme.auth_verify_codes WHERE country_code=%d AND mobile='%s' AND code='%s' LIMIT 1`, req.CountryCode, db.Escape(mobile), db.Escape(req.VerifyCode))
+	retTwilio, err := twilio.AuthVerification(Config.TwilioToken, mobile, req.CountryCode, req.VerifyCode)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
 	}
-	if Check(len(rows) == 0, "unverified phone number", c) {
+	if Check(!retTwilio.Success, retTwilio.Message, c) {
 		return
 	}
 
-	rows, _, err = db.Query(`SELECT id, salt FROM tokenme.users WHERE country_code=%d AND mobile='%s' LIMIT 1`, req.CountryCode, db.Escape(mobile))
+	db := Service.Db
+	rows, _, err := db.Query(`SELECT id, salt FROM tokenme.users WHERE country_code=%d AND mobile='%s' LIMIT 1`, req.CountryCode, db.Escape(mobile))
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return

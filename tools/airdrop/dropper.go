@@ -56,7 +56,7 @@ func (this *Airdropper) DropLoop(ctx context.Context) {
 
 func (this *Airdropper) Drop(ctx context.Context) {
 	db := this.service.Db
-	query := `SELECT a.id, a.wallet, a.salt, a.token_address, a.gas_price, a.gas_limit, a.bonus, a.commission_fee, a.give_out, t.decimals, a.dealer_contract FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address = a.token_address) WHERE a.balance_status=0 AND a.approve_tx_status=2 AND a.dealer_tx_status=2 AND EXISTS (SELECT 1 FROM tokenme.airdrop_submissions AS ass WHERE ass.status=0 AND ass.airdrop_id=a.id LIMIT 1) AND NOT EXISTS (SELECT 1 FROM tokenme.airdrop_submissions AS ass WHERE ass.status=1 AND ass.airdrop_id=a.id LIMIT 1) AND a.id> %d ORDER BY a.id DESC LIMIT 1000`
+	query := `SELECT a.id, a.wallet, a.salt, a.token_address, a.gas_price, a.gas_limit, a.bonus, a.commission_fee, a.give_out, t.decimals, a.dealer_contract FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address = a.token_address) WHERE a.balance_status=0 AND a.approve_tx_status=2 AND a.dealer_tx_status=2 AND EXISTS (SELECT 1 FROM tokenme.airdrop_submissions AS ass WHERE ass.status=0 AND ass.airdrop_id=a.id LIMIT 1) AND NOT EXISTS (SELECT 1 FROM tokenme.airdrop_submissions AS ass WHERE ass.status=1 AND ass.airdrop_id=a.id LIMIT 1) AND a.id> %d AND a.end_date<=DATE(NOW()) ORDER BY a.id DESC LIMIT 1000`
 	var (
 		startId uint64
 		endId   uint64
@@ -142,7 +142,7 @@ func (this *Airdropper) DropAirdrop(ctx context.Context, airdrop *common.Airdrop
 		return
 	}
 
-	query := `SELECT ass.id, ass.promotion_id, ass.adzone_id, ass.channel_id, ass.promoter_id, ass.wallet, u.wallet, u.salt FROM tokenme.airdrop_submissions AS ass INNER JOIN tokenme.user_wallets AS u ON (u.user_id=ass.promoter_id AND u.token_type='ETH' AND u.is_main=1) WHERE ass.status=0 AND ass.airdrop_id=%d ORDER BY id DESC LIMIT 100`
+	query := `SELECT ass.id, ass.promotion_id, ass.adzone_id, ass.channel_id, ass.promoter_id, ass.wallet, ass.referrer, u.wallet, u.salt FROM tokenme.airdrop_submissions AS ass INNER JOIN tokenme.user_wallets AS u ON (u.user_id=ass.promoter_id AND u.token_type='ETH' AND u.is_main=1) WHERE ass.status=0 AND ass.airdrop_id=%d ORDER BY id DESC LIMIT 100`
 	var submissions []*common.AirdropSubmission
 	rows, _, err = db.Query(query, airdrop.Id)
 	if err != nil {
@@ -150,10 +150,15 @@ func (this *Airdropper) DropAirdrop(ctx context.Context, airdrop *common.Airdrop
 		return
 	}
 	for _, row := range rows {
-		wallet := row.Str(6)
-		salt := row.Str(7)
+		wallet := row.Str(7)
+		salt := row.Str(8)
 		privateKey, _ := utils.AddressDecrypt(wallet, salt, this.config.TokenSalt)
 		publicKey, _ := eth.AddressFromHexPrivateKey(privateKey)
+		submissionWallet := row.Str(5)
+		referrer := row.Str(6)
+		if referrer == submissionWallet || referrer == publicKey {
+			referrer = ""
+		}
 		submission := &common.AirdropSubmission{
 			Id:      row.Uint64(0),
 			Airdrop: airdrop,
@@ -162,8 +167,9 @@ func (this *Airdropper) DropAirdrop(ctx context.Context, airdrop *common.Airdrop
 				AdzoneId:  row.Uint64(2),
 				ChannelId: row.Uint64(3),
 				UserId:    row.Uint64(4),
+				Referrer:  referrer,
 			},
-			Wallet:         row.Str(5),
+			Wallet:         submissionWallet,
 			PromoterWallet: publicKey,
 		}
 		submissions = append(submissions, submission)
@@ -192,15 +198,32 @@ func (this *Airdropper) DropAirdropChunk(ctx context.Context, airdrop *common.Ai
 	}
 	eth.TransactorUpdate(transactor, transactorOpts, ctx)
 	var (
-		tokenAmounts []*big.Int
-		recipients   []ethcommon.Address
+		recipientsMap = make(map[string]*big.Int)
+		tokenAmounts  []*big.Int
+		recipients    []ethcommon.Address
+		promoWallet   = submissions[0].PromoterWallet
 	)
 	for _, submission := range submissions {
-		tokenAmounts = append(tokenAmounts, airdrop.TokenGiveOut())
-		recipients = append(recipients, ethcommon.HexToAddress(submission.Wallet))
+		recipientsMap[submission.Wallet] = airdrop.TokenGiveOut()
+		if submission.Proto.Referrer != "" {
+			if _, found := recipientsMap[submission.Proto.Referrer]; found {
+				recipientsMap[submission.Proto.Referrer] = new(big.Int).Add(recipientsMap[submission.Proto.Referrer], airdrop.TokenBonus())
+			} else {
+				recipientsMap[submission.Proto.Referrer] = airdrop.TokenBonus()
+			}
+		} else if promoWallet != submission.Wallet {
+			if _, found := recipientsMap[promoWallet]; found {
+				recipientsMap[promoWallet] = new(big.Int).Add(recipientsMap[promoWallet], airdrop.TokenBonus())
+			} else {
+				recipientsMap[promoWallet] = airdrop.TokenBonus()
+			}
+		}
+
 	}
-	tokenAmounts = append(tokenAmounts, airdrop.TotalTokenBonus(totalSubmissions))
-	recipients = append(recipients, ethcommon.HexToAddress(submissions[0].PromoterWallet))
+	for addr, amount := range recipientsMap {
+		recipients = append(recipients, ethcommon.HexToAddress(addr))
+		tokenAmounts = append(tokenAmounts, amount)
+	}
 	multiSenderContract, err := ethutils.NewMultiSendERC20Dealer(airdrop.DealerContract, this.service.Geth)
 	if err != nil {
 		log.Error(err.Error())

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	cmc "github.com/miguelmota/go-coinmarketcap"
 	"github.com/tokenme/tokenmed/coins/eth"
+	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
 	"math"
 	"math/big"
@@ -47,9 +48,12 @@ func MarketHandler(c *gin.Context) {
 		coinId = strings.Replace(coinId, " ", "-", 0)
 	}
 
-	coin, _ := cmc.GetCoinData(coinId)
-	if coin.ID == "" && price > 0 {
-		coin = cmc.Coin{
+	options := &cmc.TickerOptions{
+		Symbol: coinId,
+	}
+	coinTicker, _ := cmc.Ticker(options)
+	if coinTicker.ID == 0 && price > 0 {
+		coin := common.TokenMarket{
 			PriceUSD: price,
 		}
 		tokenCaller, err := eth.NewStandardTokenCaller(ethcommon.HexToAddress(q), Service.Geth)
@@ -67,11 +71,21 @@ func MarketHandler(c *gin.Context) {
 		}
 
 		coin.MarketCapUSD = coin.TotalSupply * coin.PriceUSD
-	} else {
-		redisMasterConn := Service.Redis.Master.Get()
-		defer redisMasterConn.Close()
-		redisMasterConn.Do("SETEX", fmt.Sprintf("coinprice-%s", strings.ToLower(q)), 60*60, coin.PriceUSD)
+		c.JSON(http.StatusOK, coin)
+		return
 	}
+	coin := common.TokenMarket{
+		TotalSupply:       coinTicker.TotalSupply,
+		CirculatingSupply: coinTicker.CirculatingSupply,
+	}
+	if quote, found := coinTicker.Quotes["USD"]; found {
+		coin.PriceUSD = quote.Price
+		coin.MarketCapUSD = quote.MarketCap
+		coin.Volume24H = quote.Volume24H
+	}
+	redisMasterConn := Service.Redis.Master.Get()
+	defer redisMasterConn.Close()
+	redisMasterConn.Do("SETEX", fmt.Sprintf("coinprice-%s", strings.ToLower(q)), 60*60, coin.PriceUSD)
 	c.JSON(http.StatusOK, coin)
 	return
 }

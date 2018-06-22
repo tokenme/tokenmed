@@ -2,9 +2,12 @@ package promotion
 
 import (
 	"fmt"
+	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
+	"github.com/tokenme/tokenmed/coins/eth"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
+	"github.com/tokenme/tokenmed/utils"
 	"net/http"
 	"time"
 )
@@ -48,13 +51,31 @@ func AddHandler(c *gin.Context) {
 		promotionId = ret.InsertId()
 	}
 
+	query := `SELECT
+			uw.wallet,
+			uw.salt
+		FROM tokenme.user_wallets AS uw
+		WHERE uw.user_id=%d AND uw.is_main=1`
+	rows, _, err = db.Query(query, user.Id)
+	if CheckErr(err, c) {
+		raven.CaptureError(err, nil)
+		return
+	}
+	row := rows[0]
+	wallet := row.Str(0)
+	salt := row.Str(1)
+	privateKey, _ := utils.AddressDecrypt(wallet, salt, Config.TokenSalt)
+	publicKey, _ := eth.AddressFromHexPrivateKey(privateKey)
+
 	promo := common.PromotionProto{
 		Id:        promotionId,
 		UserId:    user.Id,
 		AirdropId: req.AirdropId,
 		AdzoneId:  req.AdzoneId,
 		ChannelId: channelId,
+		Referrer:  publicKey,
 	}
+
 	promoKey, err := common.EncodePromotion([]byte(Config.LinkSalt), promo)
 	if CheckErr(err, c) {
 		return

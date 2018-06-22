@@ -43,7 +43,12 @@ func GraphHandler(c *gin.Context) {
 		end, _ = time.Parse("2006-01-02", c.Query("end"))
 	}
 
-	graph, err := cmc.GetCoinGraphData(coinId, start.Unix(), end.Unix())
+	options := &cmc.TickerGraphOptions{
+		Symbol: coinId,
+		Start:  start.Unix(),
+		End:    end.Unix(),
+	}
+	graph, err := cmc.TickerGraph(options)
 	if CheckErr(err, c) {
 		return
 	}

@@ -24,27 +24,63 @@ import (
 	"syscall"
 )
 
-var (
-	configFlag = flag.String("config", "config.yml", "configuration file")
-)
-
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	var config common.Config
-
-	flag.IntVar(&config.Port, "port", 11151, "set port")
-	flag.StringVar(&config.UI, "ui", "./ui/dist", "set web static file path")
-	flag.StringVar(&config.LogPath, "log", "/tmp/tokenmed", "set log file path without filename")
-	flag.BoolVar(&config.Debug, "debug", false, "set debug mode")
-	flag.BoolVar(&config.EnableWeb, "web", false, "enable http web server")
-	flag.BoolVar(&config.EnableTelegramBot, "telegrambot", false, "enable telegram bot")
-	flag.BoolVar(&config.EnableGC, "gc", false, "enable gc")
-	flag.BoolVar(&config.EnableDealer, "dealer", false, "enable dealer")
-	flag.BoolVar(&config.EnableDepositChecker, "deposit", false, "enable deposit checker")
-	flag.Parse()
+	var (
+		config     common.Config
+		configFlag common.Config
+		configPath string
+	)
 
 	os.Setenv("CONFIGOR_ENV_PREFIX", "-")
-	configor.Load(&config, *configFlag)
+
+	flag.StringVar(&configPath, "config", "config.toml", "configuration file")
+	flag.IntVar(&configFlag.Port, "port", 11151, "set port")
+	flag.StringVar(&configFlag.UI, "ui", "./ui/dist", "set web static file path")
+	flag.StringVar(&configFlag.LogPath, "log", "/tmp/tokenmed", "set log file path without filename")
+	flag.BoolVar(&configFlag.Debug, "debug", false, "set debug mode")
+	flag.BoolVar(&configFlag.EnableWeb, "web", false, "enable http web server")
+	flag.BoolVar(&configFlag.EnableTelegramBot, "telegrambot", false, "enable telegram bot")
+	flag.BoolVar(&configFlag.EnableGC, "gc", false, "enable gc")
+	flag.BoolVar(&configFlag.EnableDealer, "dealer", false, "enable dealer")
+	flag.BoolVar(&configFlag.EnableDepositChecker, "deposit", false, "enable deposit checker")
+	flag.Parse()
+
+	configor.New(&configor.Config{Verbose: configFlag.Debug, ErrorOnUnmatchedKeys: true, Environment: "production"}).Load(&config, configPath)
+
+	if configFlag.Port > 0 {
+		config.Port = configFlag.Port
+	}
+	if configFlag.UI != "" {
+		config.UI = configFlag.UI
+	}
+	if configFlag.LogPath != "" {
+		config.LogPath = configFlag.LogPath
+	}
+
+	if configFlag.EnableWeb {
+		config.EnableWeb = configFlag.EnableWeb
+	}
+
+	if configFlag.EnableTelegramBot {
+		config.EnableTelegramBot = configFlag.EnableTelegramBot
+	}
+
+	if configFlag.EnableGC {
+		config.EnableGC = configFlag.EnableGC
+	}
+
+	if configFlag.EnableDealer {
+		config.EnableDealer = configFlag.EnableDealer
+	}
+
+	if configFlag.EnableDepositChecker {
+		config.EnableDepositChecker = configFlag.EnableDepositChecker
+	}
+
+	if configFlag.Debug {
+		config.Debug = configFlag.Debug
+	}
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -52,7 +88,13 @@ func main() {
 		return
 	}
 
-	defer log.Uninit(log.InitMultiFileAndConsole(path.Join(wd, config.LogPath), "tokenmed.log", log.LvERROR))
+	var logPath string
+	if path.IsAbs(config.LogPath) {
+		logPath = config.LogPath
+	} else {
+		logPath = path.Join(wd, config.LogPath)
+	}
+	defer log.Uninit(log.InitMultiFileAndConsole(logPath, "tokenmed.log", log.LvERROR))
 
 	raven.SetDSN(config.SentryDSN)
 	service := common.NewService(config)
@@ -101,7 +143,12 @@ func main() {
 			gin.SetMode(gin.ReleaseMode)
 		}
 		//gin.DisableBindValidation()
-		staticPath := path.Join(wd, config.UI)
+		var staticPath string
+		if path.IsAbs(config.UI) {
+			staticPath = config.UI
+		} else {
+			staticPath = path.Join(wd, config.UI)
+		}
 		log.Info("Static UI path: %s", staticPath)
 		r := router.NewRouter(staticPath)
 		log.Info("%s started at:0.0.0.0:%d", config.AppName, config.Port)

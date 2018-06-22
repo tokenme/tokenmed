@@ -91,6 +91,7 @@ func ListHandler(c *gin.Context) {
 			BalanceStatus: row.Uint(15),
 			StartDate:     row.ForceLocaltime(16),
 			EndDate:       row.ForceLocaltime(17),
+			TelegramBot:   Config.TelegramBotName,
 			TelegramGroup: row.Str(18),
 			Inserted:      row.ForceLocaltime(19),
 			Updated:       row.ForceLocaltime(20),

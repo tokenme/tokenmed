@@ -86,7 +86,7 @@ func (this *Bot) MessageConsumer(message *tgbotapi.Message) {
 		reply = "Sorry, submitted verification code is invalid"
 	}
 	db := this.Service.Db
-	rows, _, err := db.Query(`SELECT c.status, c.promotion_id, c.adzone_id, c.channel_id, c.promoter_id, c.airdrop_id, a.telegram_group, c.wallet FROM tokenme.codes AS c LEFT JOIN tokenme.airdrops AS a ON (a.id=c.airdrop_id) WHERE c.id=%d LIMIT 1`, verifyCode)
+	rows, _, err := db.Query(`SELECT c.status, c.promotion_id, c.adzone_id, c.channel_id, c.promoter_id, c.airdrop_id, a.telegram_group, c.wallet, c.referrer FROM tokenme.codes AS c LEFT JOIN tokenme.airdrops AS a ON (a.id=c.airdrop_id) WHERE c.id=%d LIMIT 1`, verifyCode)
 	if err != nil {
 		reply = "Sorry, we have some internal server bug :("
 	}
@@ -103,12 +103,13 @@ func (this *Bot) MessageConsumer(message *tgbotapi.Message) {
 	}
 	telegramGroupName := rows[0].Str(6)
 	wallet := rows[0].Str(7)
+	referrer := rows[0].Str(8)
 	if telegramGroupName != message.Chat.Title {
 		reply = fmt.Sprintf("Sorry, you must submit your code in group @%s", telegramGroupName)
 	} else if codeStatus == 0 {
 		reply = "Sorry, maybe you didn't submit your wallet address?"
 	} else if codeStatus == 1 {
-		_, ret, err := db.Query(`INSERT IGNORE INTO tokenme.airdrop_submissions (promotion_id, adzone_id, channel_id, promoter_id, airdrop_id, verify_code, wallet, telegram_msg_id, telegram_chat_id, telegram_user_id, telegram_chat_title, telegram_username, telegram_user_firstname, telegram_user_lastname) VALUES (%d, %d, %d, %d, %d, %d, '%s', %d, %d, %d, '%s', '%s', '%s', '%s')`, proto.Id, proto.AdzoneId, proto.ChannelId, proto.UserId, proto.AirdropId, verifyCode, db.Escape(wallet), message.MessageID, message.Chat.ID, message.From.ID, db.Escape(message.Chat.Title), db.Escape(message.From.UserName), db.Escape(message.From.FirstName), db.Escape(message.From.LastName))
+		_, ret, err := db.Query(`INSERT IGNORE INTO tokenme.airdrop_submissions (promotion_id, adzone_id, channel_id, promoter_id, airdrop_id, verify_code, wallet, telegram_msg_id, telegram_chat_id, telegram_user_id, telegram_chat_title, telegram_username, telegram_user_firstname, telegram_user_lastname, referrer) VALUES (%d, %d, %d, %d, %d, %d, '%s', %d, %d, %d, '%s', '%s', '%s', '%s', '%s')`, proto.Id, proto.AdzoneId, proto.ChannelId, proto.UserId, proto.AirdropId, verifyCode, db.Escape(wallet), message.MessageID, message.Chat.ID, message.From.ID, db.Escape(message.Chat.Title), db.Escape(message.From.UserName), db.Escape(message.From.FirstName), db.Escape(message.From.LastName), db.Escape(referrer))
 		if err != nil {
 			reply = "Sorry, we have some internal server bug :("
 		}

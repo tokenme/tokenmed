@@ -10,26 +10,32 @@
 [[projects]]
   name = "github.com/anaskhan96/soup"
   packages = ["."]
-  revision = "7a8d31f81bad1a5abeed0d0219c35e5e295a5a76"
-  version = "v1.0.1"
+  revision = "cd07662ec9300d16d2ece1c24b0b29ad89f65ff4"
+  version = "v1.1"
 
 [[projects]]
   branch = "master"
   name = "github.com/aristanetworks/goarista"
   packages = ["monotime"]
-  revision = "59a9fbff37594bdf8030b4431e41eb4563189a2a"
+  revision = "06cfa1db77dae2425e143980408e642f7a9d5b09"
 
 [[projects]]
   branch = "master"
   name = "github.com/btcsuite/btcd"
   packages = ["btcec"]
-  revision = "2be2f12b358dc57d70b8f501b00be450192efbc3"
+  revision = "86fed781132ac890ee03e906e4ecd5d6fa180c64"
 
 [[projects]]
   name = "github.com/certifi/gocertifi"
   packages = ["."]
   revision = "deb3ae2ef2610fde3330947281941c562861188b"
   version = "2018.01.18"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/coincircle/go-coinmarketcap"
+  packages = ["types"]
+  revision = "86a427de333f50fc31470c53bab5d8a02b296ec0"
 
 [[projects]]
   branch = "master"
@@ -71,13 +77,14 @@
     "event",
     "log",
     "metrics",
+    "p2p/netutil",
     "params",
     "rlp",
     "rpc",
     "trie"
   ]
-  revision = "1e67410e88d2685bc54611a7c9f75c327b553ccc"
-  version = "v1.8.1"
+  revision = "dea1ce052a10cd7d401a5c04f83f371a06fe293c"
+  version = "v1.8.11"
 
 [[projects]]
   branch = "master"
@@ -91,14 +98,14 @@
     "internal",
     "redis"
   ]
-  revision = "d1ed5c67e5794de818ea85e6b522fda02623a484"
-  version = "v1.5.0"
+  revision = "a69d19351219b6dd56f274f96d85a7014a2ec34e"
+  version = "v1.6.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/getsentry/raven-go"
   packages = ["."]
-  revision = "7562301a6763c9ac631b0a2011b4aa0e064e45d4"
+  revision = "ed7bcb39ff10f39ab08e317ce16df282845852fa"
 
 [[projects]]
   branch = "master"
@@ -125,14 +132,14 @@
 [[projects]]
   name = "github.com/golang/protobuf"
   packages = ["proto"]
-  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
-  version = "v1.0.0"
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/golang/snappy"
   packages = ["."]
-  revision = "553a641470496b2327abcac10b36396bd98e45c9"
+  revision = "2e65f85255dbc3072edf28d6b5b8efc472979f5a"
 
 [[projects]]
   name = "github.com/gorilla/websocket"
@@ -144,7 +151,7 @@
   branch = "master"
   name = "github.com/jinzhu/configor"
   packages = ["."]
-  revision = "6ecfe629230f24c2e92c7894c6ab21b83b757a39"
+  revision = "4edaf76fe18865e36de734d887f4c01bd05707af"
 
 [[projects]]
   name = "github.com/mattn/go-isatty"
@@ -156,13 +163,16 @@
   branch = "master"
   name = "github.com/microcosm-cc/bluemonday"
   packages = ["."]
-  revision = "542fd4642604d0d0c26112396ce5b1a9d01eee0b"
+  revision = "f0761eb8ed07c1cc892ef631b00c33463b9b6868"
 
 [[projects]]
   branch = "master"
   name = "github.com/miguelmota/go-coinmarketcap"
-  packages = ["."]
-  revision = "782442cf6b847f0d0db45f441099a2bd53a93e1d"
+  packages = [
+    ".",
+    "types"
+  ]
+  revision = "86a427de333f50fc31470c53bab5d8a02b296ec0"
 
 [[projects]]
   name = "github.com/mkideal/log"
@@ -221,24 +231,15 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/rcrowley/go-metrics"
-  packages = [
-    ".",
-    "exp"
-  ]
-  revision = "8732c616f52954686704c8645fe1a9d59e9df7c1"
-
-[[projects]]
-  branch = "master"
   name = "github.com/rjeczalik/notify"
   packages = ["."]
-  revision = "c31e5f2cb22b3e4ef3f882f413847669bf2652b9"
+  revision = "d152f3ce359a5464dc41e84a8919fc67e55bbbf0"
 
 [[projects]]
   name = "github.com/rs/cors"
   packages = ["."]
-  revision = "7af7a1e09ba336d2ea14b1ce73bf693c6837dbf6"
-  version = "v1.2"
+  revision = "ca016a06a5753f8ba03029c0aa5e54afb1bf713f"
+  version = "v1.4.0"
 
 [[projects]]
   branch = "master"
@@ -257,7 +258,7 @@
     "leveldb/table",
     "leveldb/util"
   ]
-  revision = "211f780988068502fe874c44dae530528ebd840f"
+  revision = "0d5a0ceb10cf9ab89fdd744cc8c50a83134f6697"
 
 [[projects]]
   name = "github.com/technoweenie/multipartstreamer"
@@ -268,8 +269,8 @@
 [[projects]]
   name = "github.com/ugorji/go"
   packages = ["codec"]
-  revision = "9831f2c3ac1068a78f50999a30db84270f647af6"
-  version = "v1.1"
+  revision = "b4c50a2b199d93b13dc15e78929cfb23bfdf21ab"
+  version = "v1.1.1"
 
 [[projects]]
   name = "github.com/ziutek/mymysql"
@@ -289,7 +290,7 @@
     "pbkdf2",
     "scrypt"
   ]
-  revision = "49796115aa4b964c318aad4f3084fdb41e9aa067"
+  revision = "a49355c7e3f8fe157a85be2f77e6e269a0f89602"
 
 [[projects]]
   branch = "master"
@@ -299,7 +300,7 @@
     "html/atom",
     "websocket"
   ]
-  revision = "cbe0f9307d0156177f9dd5dc85da1a31abc5f2fb"
+  revision = "afe8f62b1d6bbd81f31868121a50b06d8188e1f9"
 
 [[projects]]
   branch = "master"
@@ -308,22 +309,23 @@
     "unix",
     "windows"
   ]
-  revision = "f6cff0780e542efa0c8e864dc8fa522808f6a598"
+  revision = "ad87a3a340fa7f3bed189293fbfa7a9b7e021ae1"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
-    "imports"
+    "imports",
+    "internal/fastwalk"
   ]
-  revision = "2ae76fd1560b622911f444c1e66b70a857e1de67"
+  revision = "25b95b48224cce18163c7d49dcfb89a2d5ecd209"
 
 [[projects]]
   name = "gopkg.in/dgrijalva/jwt-go.v3"
   packages = ["."]
-  revision = "dbeaa9332f19a944acb5736b4456cfcc02140e29"
-  version = "v3.1.0"
+  revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
+  version = "v3.2.0"
 
 [[projects]]
   name = "gopkg.in/fatih/set.v0"
@@ -352,18 +354,18 @@
 [[projects]]
   name = "gopkg.in/telegram-bot-api.v4"
   packages = ["."]
-  revision = "2022d04b94f50056a09962b1ac81cdd821d20a55"
-  version = "v4.6.1"
+  revision = "0e0af0c480ea98e982d5f4d45fb39577c6ab1e3e"
+  version = "v4.6.2"
 
 [[projects]]
-  branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "64b54c7a5e8de0f62bd33145196378e0764c83646ef509bd062ee92d54c12b2f"
+  inputs-digest = "e874405e65c653678eafd0e091528f07138f6956f32c0478ea091f175bb9a651"
   solver-name = "gps-cdcl"
   solver-version = 1

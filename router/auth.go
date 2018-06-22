@@ -11,7 +11,7 @@ var AUTH_KEY = []byte("20eefe8d82ba3ca8a417e14a48d24632bc35bbd7")
 
 const (
 	AUTH_REALM      = "Tokenme.Server[tokenme.io]"
-	AUTH_TIMEOUT    = 3 * time.Hour
+	AUTH_TIMEOUT    = 168 * time.Hour
 	AUTH_MAXREFRESH = 1 * time.Hour
 )
 
