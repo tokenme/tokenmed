@@ -1,0 +1,111 @@
+package airdrop
+
+import (
+	"bytes"
+	"encoding/csv"
+	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/tokenme/tokenmed/common"
+	. "github.com/tokenme/tokenmed/handler"
+	"net/http"
+	"strconv"
+	"time"
+)
+
+func SubmissionExportHandler(c *gin.Context) {
+	userContext, exists := c.Get("USER")
+	if Check(!exists, "need login", c) {
+		return
+	}
+	user := userContext.(common.User)
+	airdropId, err := Uint64NonZero(c.Query("airdrop_id"), "missing airdrop id")
+	if CheckErr(err, c) {
+		return
+	}
+	db := Service.Db
+	var where string
+	if user.IsAdmin != 1 {
+		where = fmt.Sprintf(" AND user_id=%d", user.Id)
+	}
+	rows, _, err := db.Query(`SELECT a.start_date, a.end_date FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d%s`, airdropId, where)
+	if CheckErr(err, c) {
+		return
+	}
+	if len(rows) == 0 {
+		c.JSON(http.StatusOK, APIResponse{Msg: "ok"})
+		return
+	}
+	airdropStartDate := rows[0].ForceLocaltime(0)
+	airdropEndDate := rows[0].ForceLocaltime(1)
+
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+
+	var (
+		startDate time.Time
+		endDate   time.Time
+	)
+	if startDateStr == "" {
+		startDate = airdropStartDate
+	} else {
+		startDate, err = time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			startDate = airdropStartDate
+		}
+	}
+	if endDateStr == "" {
+		endDate = airdropEndDate
+	} else {
+		endDate, err = time.Parse("2006-01-02", endDateStr)
+		if err != nil {
+			endDate = airdropEndDate
+		}
+	}
+	if endDate.After(airdropEndDate) {
+		endDate = airdropEndDate
+	}
+	if startDate.Before(airdropStartDate) {
+		startDate = airdropStartDate
+	}
+	if startDate.After(endDate) {
+		startDate = endDate.AddDate(0, 0, -30)
+	}
+	rows, _, err = db.Query(`SELECT wallet, referrer, status, telegram_user_id, telegram_username, telegram_user_firstname, telegram_user_lastname, tx, inserted, updated FROM tokenme.airdrop_submissions WHERE airdrop_id=%d AND inserted>='%s' AND inserted<='%s' ORDER BY inserted ASC`, airdropId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	if CheckErr(err, c) {
+		return
+	}
+	buf := new(bytes.Buffer)
+	w := csv.NewWriter(buf)
+	lines := [][]string{[]string{"wallet", "referrer", "status", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}}
+	for _, row := range rows {
+		var status string
+		switch row.Uint(2) {
+		case 0:
+			status = "pending"
+		case 1:
+			status = "transfered"
+		case 2:
+			status = "success"
+		case 3:
+			status = "failed"
+		}
+		line := []string{
+			row.Str(0),
+			row.Str(1),
+			status,
+			strconv.FormatInt(row.Int64(3), 10),
+			row.Str(4),
+			row.Str(5),
+			row.Str(6),
+			row.Str(7),
+			row.ForceLocaltime(8).Format(time.RFC3339),
+			row.ForceLocaltime(9).Format(time.RFC3339),
+		}
+		lines = append(lines, line)
+	}
+	w.WriteAll(lines)
+	w.Flush()
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"airdrop-%d-%s-%ssubmisstions.csv\"", airdropId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02")))
+	//c.Header("Content-Length", strconv.Itoa(buf.Len()))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", buf.Bytes())
+}

@@ -61,12 +61,7 @@ func (this *AirdropChecker) CheckLoop(ctx context.Context) {
 
 func (this *AirdropChecker) Check(ctx context.Context) {
 	db := this.service.Db
-	query := `SELECT
-	atx.tx
-FROM tokenme.airdrop_tx AS atx
-WHERE atx.status=0 AND EXISTS (SELECT 1 FROM tokenme.airdrop_submissions AS ass WHERE ass.tx=atx.tx LIMIT 1) AND atx.tx > '%s'
-ORDER BY atx.tx DESC
-LIMIT 1000`
+	query := `SELECT tx FROM tokenme.airdrop_submissions WHERE tx>'%s' AND (status=1 OR tx_status=0) GROUP BY tx ORDER BY tx ASC LIMIT 1000`
 	var (
 		startTx string
 		endTx   string
@@ -93,14 +88,13 @@ LIMIT 1000`
 func (this *AirdropChecker) CheckSubmission(ctx context.Context, submissionTx string) error {
 	receipt, err := ethutils.TransactionReceipt(this.service.Geth, ctx, submissionTx)
 	if err != nil {
-		log.Error(err.Error())
+		//log.Error(err.Error())
 		return err
 	}
 	if receipt == nil {
 		log.Info("Submission Tx:%s, isPending", submissionTx)
 		return nil
 	}
-	log.Info("Submission Tx:%s, status:%d", submissionTx, receipt.Status)
 	var (
 		txStatus         uint = 2
 		submissionStatus uint = 3
@@ -109,16 +103,20 @@ func (this *AirdropChecker) CheckSubmission(ctx context.Context, submissionTx st
 		txStatus = 1
 		submissionStatus = 2
 	}
+	log.Info("Submission Tx:%s, status:%d", submissionTx, txStatus)
 	db := this.service.Db
 	_, _, err = db.Query(`UPDATE tokenme.airdrop_tx SET status=%d WHERE tx='%s'`, txStatus, submissionTx)
 	if err != nil {
 		log.Error(err.Error())
-		return err
 	}
-	_, _, err = db.Query(`UPDATE tokenme.airdrop_submissions SET status=%d WHERE tx='%s'`, submissionStatus, submissionTx)
+	_, _, err = db.Query(`UPDATE tokenme.airdrop_submissions SET status=%d, tx_status=%d WHERE tx='%s'`, submissionStatus, txStatus, submissionTx)
 	if err != nil {
 		log.Error(err.Error())
 		return err
+	}
+
+	if txStatus != 1 {
+		return nil
 	}
 
 	query := `SELECT
@@ -169,7 +167,7 @@ WHERE ass.tx='%s'`
 
 	this.tracker.Promotion.Transactions(proto, uint64(totalSubmissions))
 	this.tracker.Promotion.GiveOut(proto, airdrop.TotalGiveOutDecimals(totalSubmissions).Uint64())
-	this.tracker.Promotion.Bonus(proto, airdrop.TotalTokenBonus(totalSubmissions).Uint64())
+	this.tracker.Promotion.Bonus(proto, airdrop.TotalTokenBonusDecimals(totalSubmissions).Uint64())
 	this.tracker.Promotion.ComissionFee(proto, airdrop.TotalCommissionFeeGwei(totalSubmissions).Uint64())
 
 	if this.telegramBot != nil {

@@ -26,6 +26,7 @@ import (
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	var (
 		config     common.Config
 		configFlag common.Config
@@ -124,6 +125,7 @@ func main() {
 	airdropper := airdrop.NewAirdropper(service, config)
 	airdropChecker := airdrop.NewAirdropChecker(service, config, trackerService)
 	depositChecker := redpacket.NewDepositChecker(service, config)
+	checkoutChecker := redpacket.NewCheckoutChecker(service, config)
 	if config.EnableDealer {
 		go dealerContractDeployer.Start()
 		go allowanceChecker.Start()
@@ -133,6 +135,7 @@ func main() {
 
 	if config.EnableDepositChecker {
 		go depositChecker.Start()
+		go checkoutChecker.Start()
 	}
 
 	if config.EnableWeb {
@@ -175,5 +178,6 @@ func main() {
 	airdropChecker.Stop()
 	gcHandler.Stop()
 	depositChecker.Stop()
+	checkoutChecker.Stop()
 	trackerService.Flush()
 }

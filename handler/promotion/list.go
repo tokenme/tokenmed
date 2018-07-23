@@ -43,6 +43,7 @@ func ListHandler(c *gin.Context) {
 	t.name ,
 	t.symbol ,
 	t.decimals ,
+	t.protocol ,
 	a.give_out ,
 	a.bonus, 
 	a.status ,
@@ -92,29 +93,32 @@ LIMIT %d, %d`
 					Name:     row.Str(8),
 					Symbol:   row.Str(9),
 					Decimals: row.Uint(10),
+					Protocol: row.Str(11),
 				},
-				GiveOut:       row.Uint64(11),
-				Bonus:         row.Uint(12),
-				Status:        row.Uint(13),
-				BalanceStatus: row.Uint(14),
-				StartDate:     row.ForceLocaltime(15),
-				EndDate:       row.ForceLocaltime(16),
-				TelegramGroup: row.Str(17),
+				GiveOut:       row.Uint64(12),
+				Bonus:         row.Uint(13),
+				Status:        row.Uint(14),
+				BalanceStatus: row.Uint(15),
+				StartDate:     row.ForceLocaltime(16),
+				EndDate:       row.ForceLocaltime(17),
+				TelegramGroup: row.Str(18),
 			}
 			airdropMap[airdropId] = airdrop
-			wg.Add(1)
-			go func(airdrop *common.Airdrop, c *gin.Context) {
-				defer wg.Done()
-				airdrop.CheckBalance(Service.Geth, c)
-			}(airdrop, c)
+			if airdrop.Token.Protocol == "ERC20" {
+				wg.Add(1)
+				go func(airdrop *common.Airdrop, c *gin.Context) {
+					defer wg.Done()
+					airdrop.CheckBalance(Service.Geth, c)
+				}(airdrop, c)
+			}
 		}
 		promotion := common.Promotion{
 			Id:          row.Uint64(0),
 			AdzoneId:    row.Uint64(1),
 			ChannelId:   row.Uint64(2),
 			Airdrop:     airdrop,
-			ChannelName: row.Str(18),
-			AdzoneName:  row.Str(19),
+			ChannelName: row.Str(19),
+			AdzoneName:  row.Str(20),
 		}
 		promo := common.PromotionProto{
 			Id:        promotion.Id,
@@ -134,7 +138,9 @@ LIMIT %d, %d`
 	wg.Wait()
 	var val []string
 	for _, a := range airdropMap {
-		val = append(val, fmt.Sprintf("(%d, %d)", a.Id, a.BalanceStatus))
+		if a.Token.Protocol == "ERC20" {
+			val = append(val, fmt.Sprintf("(%d, %d)", a.Id, a.BalanceStatus))
+		}
 	}
 	if len(val) > 0 {
 		_, _, err = db.Query(`INSERT INTO tokenme.airdrops (id, balance_status) VALUES %s ON DUPLICATE KEY UPDATE balance_status=VALUES(balance_status)`, strings.Join(val, ","))

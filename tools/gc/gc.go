@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	VerifyCodeGCHours      int = 2
+	VerifyCodeGCHours      int = 24
 	AuthVerifyCodesGCHours int = 3
 )
 
@@ -27,6 +27,9 @@ func New(service *common.Service, config common.Config) *Handler {
 
 func (this *Handler) Start() {
 	log.Info("GC Start")
+	this.verifyCodesRecycle()
+	this.authVerifyCodesRecycle()
+	this.airdropTXRecycle()
 	hourlyTicker := time.NewTicker(1 * time.Hour)
 	for {
 		select {

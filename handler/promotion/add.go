@@ -7,6 +7,7 @@ import (
 	"github.com/tokenme/tokenmed/coins/eth"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
+	"github.com/tokenme/tokenmed/tools/shorturl"
 	"github.com/tokenme/tokenmed/utils"
 	"net/http"
 	"time"
@@ -80,13 +81,18 @@ func AddHandler(c *gin.Context) {
 	if CheckErr(err, c) {
 		return
 	}
+	link := fmt.Sprintf("%s/promo/%s", Config.BaseUrl, promoKey)
+	shortURL, err := shorturl.Sina(link)
+	if err == nil && shortURL != "" {
+		link = shortURL
+	}
 	promotion := common.Promotion{
 		Id:        promotionId,
 		UserId:    user.Id,
 		Airdrop:   &common.Airdrop{Id: req.AirdropId},
 		AdzoneId:  req.AdzoneId,
 		ChannelId: channelId,
-		Link:      fmt.Sprintf("%s/promo/%s", Config.BaseUrl, promoKey),
+		Link:      link,
 		Key:       promoKey,
 		Inserted:  time.Now(),
 	}

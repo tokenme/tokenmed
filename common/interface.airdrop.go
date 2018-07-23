@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
+	//"github.com/mkideal/log"
 	"github.com/tokenme/tokenmed/coins/eth"
 	"math"
 	"math/big"
@@ -59,6 +60,8 @@ type Airdrop struct {
 	Inserted         time.Time            `json:"inserted"`
 	Updated          time.Time            `json:"updated"`
 	TelegramBot      string               `json:"telegram_bot"`
+	Intro            string               `json:"intro,omitempty"`
+	SyncDrop         uint                 `json:"-"`
 }
 
 type AirdropStats struct {
@@ -122,14 +125,27 @@ func (this *Airdrop) GetGasBalance(geth *ethclient.Client, ctx context.Context) 
 }
 
 func (this *Airdrop) TokenBonus() *big.Int {
+	giveOutGwei := new(big.Int).SetUint64(this.GiveOut)
+	bonusBig := big.NewInt(int64(this.Bonus))
+	giveOutMulBonus := new(big.Int).Mul(giveOutGwei, bonusBig)
+	bonusCal := new(big.Int).Div(giveOutMulBonus, big.NewInt(100))
 	if this.Token.Decimals == 0 {
-		return new(big.Int).SetUint64(this.GiveOut * uint64(this.Bonus) / 100)
+		return bonusCal
 	}
-	return new(big.Int).SetUint64(this.GiveOut * uint64(this.Bonus) * uint64(math.Pow10(int(this.Token.Decimals))) / 100)
+	decimalsPow := new(big.Int).SetUint64(uint64(math.Pow10(int(this.Token.Decimals))))
+	return new(big.Int).Mul(bonusCal, decimalsPow)
 }
 
 func (this *Airdrop) TotalTokenBonus(num int64) *big.Int {
 	return new(big.Int).Mul(this.TokenBonus(), big.NewInt(num))
+}
+
+func (this *Airdrop) TotalTokenBonusDecimals(num int64) *big.Int {
+	if this.Token.Decimals == 0 {
+		return this.TotalTokenBonus(num)
+	}
+	decimalsPow := new(big.Int).SetUint64(uint64(math.Pow10(int(this.Token.Decimals))))
+	return new(big.Int).Div(this.TotalTokenBonus(num), decimalsPow)
 }
 
 func (this *Airdrop) TotalGiveOut(num int64) *big.Int {
@@ -140,18 +156,22 @@ func (this *Airdrop) TotalGiveOutDecimals(num int64) *big.Int {
 	if this.Token.Decimals == 0 {
 		return this.TotalGiveOut(num)
 	}
-	return new(big.Int).Div(this.TotalGiveOut(num), new(big.Int).SetUint64(uint64(math.Pow10(int(this.Token.Decimals)))))
+	decimalsPow := new(big.Int).SetUint64(uint64(math.Pow10(int(this.Token.Decimals))))
+	return new(big.Int).Div(this.TotalGiveOut(num), decimalsPow)
 }
 
 func (this *Airdrop) TokenGiveOut() *big.Int {
+	giveOutGwei := new(big.Int).SetUint64(this.GiveOut)
 	if this.Token.Decimals == 0 {
-		return new(big.Int).SetUint64(this.GiveOut)
+		return giveOutGwei
 	}
-	return new(big.Int).SetUint64(this.GiveOut * uint64(math.Pow10(int(this.Token.Decimals))))
+	decimalsPow := new(big.Int).SetUint64(uint64(math.Pow10(int(this.Token.Decimals))))
+	return new(big.Int).Mul(giveOutGwei, decimalsPow)
 }
 
 func (this *Airdrop) CommissionFeeToWei() *big.Int {
-	return new(big.Int).SetUint64(this.CommissionFee * params.Shannon)
+	commissionFee := new(big.Int).SetUint64(this.CommissionFee)
+	return new(big.Int).Mul(commissionFee, big.NewInt(params.Shannon))
 }
 
 func (this *Airdrop) TotalCommissionFee(num int64) *big.Int {
@@ -163,11 +183,12 @@ func (this *Airdrop) TotalCommissionFeeGwei(num int64) *big.Int {
 }
 
 func (this *Airdrop) GasPriceToWei() *big.Int {
-	return new(big.Int).SetUint64(this.GasPrice * params.Shannon)
+	gasPrice := new(big.Int).SetUint64(this.GasPrice)
+	return new(big.Int).Mul(gasPrice, big.NewInt(params.Shannon))
 }
 
 func (this *Airdrop) MaxGasFee() *big.Int {
-	return new(big.Int).SetUint64(this.GasPrice * this.GasLimit * params.Shannon)
+	return new(big.Int).Mul(this.GasPriceToWei(), new(big.Int).SetUint64(this.GasLimit))
 }
 
 func (this *Airdrop) EnoughBudgetForSubmissions(num int64) (gasNeed *big.Int, tokenNeed *big.Int, enoughGas bool, enoughToken bool) {

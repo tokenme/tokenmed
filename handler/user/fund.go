@@ -258,18 +258,63 @@ GROUP BY
 			outcomeLeft := row.ForceFloat(1)
 			cashOutput := row.ForceFloat(2)
 			decimals := row.Int(3)
+			var (
+				leftValue *big.Int
+				cashValue *big.Int
+			)
 			if decimals >= 4 {
 				leftVal := uint64(outcomeLeft * float64(utils.Pow40.Uint64()))
 				cashVal := uint64(cashOutput * float64(utils.Pow40.Uint64()))
-				redPacketOutcomeLeft[addr] = new(big.Int).Mul(new(big.Int).SetUint64(leftVal), utils.Pow10(decimals))
-				redPacketOutcomeLeft[addr] = new(big.Int).Div(redPacketOutcomeLeft[addr], utils.Pow40)
-				redPacketCashOutput[addr] = new(big.Int).Mul(new(big.Int).SetUint64(cashVal), utils.Pow10(decimals))
-				redPacketCashOutput[addr] = new(big.Int).Div(redPacketCashOutput[addr], utils.Pow40)
+				leftValue = new(big.Int).Mul(new(big.Int).SetUint64(leftVal), utils.Pow10(decimals))
+				leftValue = new(big.Int).Div(leftValue, utils.Pow40)
+				cashValue = new(big.Int).Mul(new(big.Int).SetUint64(cashVal), utils.Pow10(decimals))
+				cashValue = new(big.Int).Div(cashValue, utils.Pow40)
 			} else {
 				leftVal := uint64(outcomeLeft)
 				cashVal := uint64(cashOutput)
-				redPacketOutcomeLeft[addr] = new(big.Int).Mul(new(big.Int).SetUint64(leftVal), utils.Pow10(decimals))
-				redPacketCashOutput[addr] = new(big.Int).Mul(new(big.Int).SetUint64(cashVal), utils.Pow10(decimals))
+				leftValue = new(big.Int).Mul(new(big.Int).SetUint64(leftVal), utils.Pow10(decimals))
+				cashValue = new(big.Int).Mul(new(big.Int).SetUint64(cashVal), utils.Pow10(decimals))
+			}
+			redPacketOutcomeLeft[addr] = leftValue
+			redPacketCashOutput[addr] = cashValue
+		}
+
+		rows, _, err = db.Query(`SELECT
+	ck.token_address ,
+	SUM(ck.tokens) AS checkout,
+	IF(ISNULL(t.address), 18, t.decimals) AS decimals
+FROM
+	tokenme.checkouts AS ck
+LEFT JOIN tokenme.tokens AS t ON ( t.address = ck.token_address )
+WHERE
+	ck.user_id = %d
+AND ck.status IN (0, 1)
+GROUP BY
+	ck.token_address`, user.Id)
+		if CheckErr(err, c) {
+			raven.CaptureError(err, nil)
+			return
+		}
+		for _, row := range rows {
+			addr := row.Str(0)
+			checkout := row.ForceFloat(1)
+			decimals := row.Int(2)
+			var (
+				value         uint64
+				checkoutValue *big.Int
+			)
+			if decimals >= 4 {
+				value = uint64(checkout * float64(utils.Pow40.Uint64()))
+				checkoutValue = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+				checkoutValue = new(big.Int).Div(checkoutValue, utils.Pow40)
+			} else {
+				value = uint64(checkout)
+				checkoutValue = new(big.Int).Mul(new(big.Int).SetUint64(value), utils.Pow10(decimals))
+			}
+			if _, found := redPacketCashOutput[addr]; found {
+				redPacketCashOutput[addr] = new(big.Int).Add(redPacketCashOutput[addr], checkoutValue)
+			} else {
+				redPacketCashOutput[addr] = checkoutValue
 			}
 		}
 
@@ -360,7 +405,7 @@ GROUP BY
 	if ethFund.Amount.Cmp(big.NewInt(0)) == 1 || ethFund.Cash.Cmp(big.NewInt(0)) == 1 {
 		coinPrice, err := redis.Float64(redisMasterConn.Do("GET", "coinprice-eth"))
 		if err != nil || coinPrice == 0 {
-			coinPrice, err := cmc.Price(&cmc.PriceOptions{Symbol: "ethereum"})
+			coinPrice, err := cmc.Price(&cmc.PriceOptions{Symbol: "ETH", Convert: "USD"})
 			if err == nil {
 				ethFund.Token.Price.Rate = coinPrice
 				redisMasterConn.Do("SETEX", "coinprice-eth", 60*60, coinPrice)
@@ -404,7 +449,7 @@ GROUP BY
 			tokenQueryList = append(tokenQueryList, fmt.Sprintf("'%s'", db.Escape(t.Token.Address)))
 		}
 		if len(tokenQueryList) > 0 {
-			rows, _, err := db.Query(`SELECT address, name, symbol, decimals, price, logo, FROM tokenme.tokens WHERE address IN (%s)`, strings.Join(tokenQueryList, ","))
+			rows, _, err := db.Query(`SELECT address, name, symbol, decimals, price, logo FROM tokenme.tokens WHERE address IN (%s)`, strings.Join(tokenQueryList, ","))
 			if CheckErr(err, c) {
 				raven.CaptureError(err, nil)
 				return
@@ -480,6 +525,7 @@ GROUP BY
 		msetKeys   = make(map[string]float64)
 		tokenAddrs = []string{"''"}
 		depositTx  = make(map[string]string)
+		checkoutTx = make(map[string]string)
 	)
 	for _, token := range tokens {
 		tokenAddrs = append(tokenAddrs, fmt.Sprintf("'%s'", db.Escape(token.Address)))
@@ -498,16 +544,26 @@ GROUP BY
 		}
 	}
 	if len(tokenAddrs) > 0 {
-		rows, _, err := db.Query(`SELECT tx, token_address FROM deposits WHERE status=0 AND user_id=%d AND token_address IN (%s)`, user.Id, strings.Join(tokenAddrs, ","))
+		rows, _, err := db.Query(`SELECT tx, token_address FROM tokenme.deposits WHERE status=0 AND user_id=%d AND token_address IN (%s)`, user.Id, strings.Join(tokenAddrs, ","))
 		if err != nil {
 			raven.CaptureError(err, nil)
 		}
 		for _, row := range rows {
 			depositTx[row.Str(1)] = row.Str(0)
 		}
+		rows, _, err = db.Query(`SELECT tx, token_address FROM tokenme.checkouts WHERE status=0 AND user_id=%d AND token_address IN (%s)`, user.Id, strings.Join(tokenAddrs, ","))
+		if err != nil {
+			raven.CaptureError(err, nil)
+		}
+		for _, row := range rows {
+			checkoutTx[row.Str(1)] = row.Str(0)
+		}
 	}
 	if tx, found := depositTx[""]; found {
 		ethFund.DepositTx = tx
+	}
+	if tx, found := checkoutTx[""]; found {
+		ethFund.CheckoutTx = tx
 	}
 	funds = append(funds, ethFund)
 	for _, token := range tokens {
@@ -517,10 +573,10 @@ GROUP BY
 			if price, found := tokenPriceMap[token.Address]; found && price > 0 {
 				token.Price = &ethplorer.TokenPrice{Rate: price, Currency: "USD"}
 			} else {
-				var coinId = token.Name
+				var coinId = token.Symbol
 				coinId = strings.ToLower(coinId)
 				coinId = strings.Replace(coinId, " ", "-", 0)
-				coinPrice, err := cmc.Price(&cmc.PriceOptions{Symbol: coinId})
+				coinPrice, err := cmc.Price(&cmc.PriceOptions{Symbol: coinId, Convert: "USD"})
 				if err == nil && coinPrice != 0 {
 					token.Price = &ethplorer.TokenPrice{Rate: coinPrice, Currency: "USD"}
 					msetKeys[token.Address] = coinPrice
@@ -562,6 +618,9 @@ GROUP BY
 			if tx, found := depositTx[token.Address]; found {
 				fund.DepositTx = tx
 			}
+			if tx, found := checkoutTx[token.Address]; found {
+				fund.CheckoutTx = tx
+			}
 			funds = append(funds, fund)
 		}(token)
 	}
@@ -581,5 +640,6 @@ GROUP BY
 		}
 	}
 	userWallet.Funds = funds
+	userWallet.CheckoutFee = new(big.Int).SetUint64(Config.CheckoutFee)
 	c.JSON(http.StatusOK, userWallet)
 }

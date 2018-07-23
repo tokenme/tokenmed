@@ -22,9 +22,13 @@ SlackAdminChannelID = "G9Y7METUG"
 
 GeoIP = "/etc/GeoLite2-Country.mmdb"
 
-TokenSalt = "20eefe8d82ba3ca8a417e14a48d24632bc35bbd7"
+TokenSalt = ""
 
-LinkSalt = "20eefe8d82ba3ca8a417e14a48d24632bc35bbd7"
+LinkSalt = ""
+
+OutputKey = ""
+
+OutputSalt = ""
 
 TwilioToken = "khWDR6abzUyqzM1WHy9Tfq7P2jRoEhLA"
 
@@ -50,9 +54,13 @@ DealerContractCreateGasLimit = 210000
 
 RedPacketIncomeWallet = "0x70d69d3aaed7b98c8b0bb0e8bce5caf40e889c69"
 
+RedPacketOutputWallet = ""
+
 RedPacketGasPrice = 8
 
 RedPacketGasLimit = 210000
+
+CheckoutFee = 100000
 
 
 [MySQL]

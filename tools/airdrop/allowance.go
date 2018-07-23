@@ -3,13 +3,11 @@ package airdrop
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/mkideal/log"
 	"github.com/tokenme/tokenmed/coins/eth"
 	ethutils "github.com/tokenme/tokenmed/coins/eth/utils"
 	"github.com/tokenme/tokenmed/common"
 	"github.com/tokenme/tokenmed/utils"
-	"math/big"
 	"strings"
 	"sync"
 	"time"
@@ -56,7 +54,43 @@ func (this *AllawanceChecker) CheckLoop(ctx context.Context) {
 
 func (this *AllawanceChecker) Check(ctx context.Context) {
 	db := this.service.Db
-	query := `SELECT id, wallet, salt, token_address, approve_tx, dealer_contract, approve_tx_status FROM tokenme.airdrops WHERE balance_status=0 AND dealer_tx_status=2 AND end_date>=DATE(NOW()) AND (approve_tx_status=1 OR allowance_checked<DATE_SUB(NOW(), INTERVAL 1 HOUR)) AND id> %d ORDER BY id DESC LIMIT 1000`
+	query := `SELECT
+	a.id ,
+	a.wallet ,
+	a.salt ,
+	a.token_address ,
+	a.approve_tx ,
+	a.dealer_contract ,
+	a.approve_tx_status
+FROM
+	tokenme.airdrops AS a
+INNER JOIN tokenme.tokens AS t ON ( t.address = a.token_address )
+WHERE
+	t.protocol = 'ERC20'
+AND a.balance_status = 0
+AND a.dealer_tx_status = 2
+AND a.end_date < DATE( NOW())
+AND ( a.approve_tx_status = 1
+OR a.allowance_checked < DATE_SUB( NOW(), INTERVAL 1 HOUR ))
+AND EXISTS ( SELECT
+	1
+FROM
+	tokenme.airdrop_submissions AS ass
+WHERE
+	NOT EXISTS ( SELECT
+		1
+	FROM
+		tokenme.airdrop_blacklist AS ab
+	WHERE
+		ab.airdrop_id = ass.airdrop_id
+	AND (ab.wallet = ass.wallet OR ab.wallet = ass.referrer)
+	LIMIT 1 )
+	AND ass.airdrop_id = a.id
+	LIMIT 1 )
+	AND a.sync_drop = 0
+	AND a.id > %d
+	ORDER BY
+		a.id DESC LIMIT 1000`
 	var (
 		startId uint64
 		endId   uint64
@@ -154,14 +188,13 @@ func (this *AllawanceChecker) CheckApprove(airdrop *common.Airdrop, ctx context.
 			return nil
 		}
 		transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
-		nonce, err := eth.PendingNonce(this.service.Geth, ctx, airdrop.Wallet)
+		nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
 		if err != nil {
 			log.Error(err.Error())
 			return err
 		}
 		transactorOpts := eth.TransactorOptions{
 			Nonce:    nonce,
-			GasPrice: big.NewInt(this.config.DealerContractCreateGasPrice * params.Shannon),
 			GasLimit: this.config.DealerContractCreateGasLimit,
 		}
 		eth.TransactorUpdate(transactor, transactorOpts, ctx)
@@ -181,8 +214,9 @@ func (this *AllawanceChecker) CheckApprove(airdrop *common.Airdrop, ctx context.
 			log.Error(err.Error())
 			return err
 		}
+		eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
 		approvalTxHash := approveTx.Hash()
-		_, _, err = db.Query(`UPDATE tokenme.airdrops SET allowance=%d, approve_tx_status=1, approve_tx=1, allowance_checked=NOW() WHERE id=%d`, tokenBalance.Uint64(), approvalTxHash.Hex(), airdrop.Id)
+		_, _, err = db.Query(`UPDATE tokenme.airdrops SET allowance=%d, approve_tx_status=1, approve_tx='%s', allowance_checked=NOW() WHERE id=%d`, tokenBalance.Uint64(), approvalTxHash.Hex(), airdrop.Id)
 		if err != nil {
 			log.Error(err.Error())
 			return err

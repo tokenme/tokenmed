@@ -22,11 +22,11 @@ func MarketHandler(c *gin.Context) {
 		decimals *big.Int
 	)
 	if q == "ETH" {
-		coinId = "ethereum"
+		coinId = "ETH"
 	} else {
 		q = strings.ToLower(q)
 		db := Service.Db
-		rows, _, err := db.Query(`SELECT name, price, decimals FROM tokenme.tokens WHERE address='%s' LIMIT 1`, q)
+		rows, _, err := db.Query(`SELECT symbol, price, decimals FROM tokenme.tokens WHERE address='%s' LIMIT 1`, q)
 		if CheckErr(err, c) {
 			return
 		}
@@ -51,9 +51,10 @@ func MarketHandler(c *gin.Context) {
 	options := &cmc.TickerOptions{
 		Symbol: coinId,
 	}
-	coinTicker, _ := cmc.Ticker(options)
-	if coinTicker.ID == 0 && price > 0 {
+	coinTicker, err := cmc.Ticker(options)
+	if err != nil && price > 0 {
 		coin := common.TokenMarket{
+			Id:       coinId,
 			PriceUSD: price,
 		}
 		tokenCaller, err := eth.NewStandardTokenCaller(ethcommon.HexToAddress(q), Service.Geth)
@@ -73,8 +74,12 @@ func MarketHandler(c *gin.Context) {
 		coin.MarketCapUSD = coin.TotalSupply * coin.PriceUSD
 		c.JSON(http.StatusOK, coin)
 		return
+	} else if err != nil {
+		c.JSON(http.StatusOK, common.TokenMarket{})
+		return
 	}
 	coin := common.TokenMarket{
+		Id:                coinId,
 		TotalSupply:       coinTicker.TotalSupply,
 		CirculatingSupply: coinTicker.CirculatingSupply,
 	}
@@ -82,6 +87,7 @@ func MarketHandler(c *gin.Context) {
 		coin.PriceUSD = quote.Price
 		coin.MarketCapUSD = quote.MarketCap
 		coin.Volume24H = quote.Volume24H
+		coin.PercentChange24H = quote.PercentChange24H
 	}
 	redisMasterConn := Service.Redis.Master.Get()
 	defer redisMasterConn.Close()

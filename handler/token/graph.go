@@ -13,11 +13,11 @@ func GraphHandler(c *gin.Context) {
 	q := c.Query("q")
 	var coinId string
 	if q == "ETH" {
-		coinId = "ethereum"
+		coinId = "ETH"
 	} else {
 		q = strings.ToLower(q)
 		db := Service.Db
-		rows, _, err := db.Query(`SELECT name FROM tokenme.tokens WHERE address='%s' LIMIT 1`, q)
+		rows, _, err := db.Query(`SELECT symbol FROM tokenme.tokens WHERE address='%s' LIMIT 1`, q)
 		if CheckErr(err, c) {
 			return
 		}

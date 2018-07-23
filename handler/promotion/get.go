@@ -6,6 +6,7 @@ import (
 	"github.com/tokenme/tokenmed/coins/eth"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
+	"github.com/tokenme/tokenmed/tools/shorturl"
 	"github.com/tokenme/tokenmed/utils"
 	"net/http"
 )
@@ -33,6 +34,7 @@ func GetHandler(c *gin.Context) {
 	t.name ,
 	t.symbol ,
 	t.decimals ,
+	t.protocol ,
 	a.give_out ,
 	a.bonus, 
 	a.status ,
@@ -73,14 +75,15 @@ AND p.user_id =%d`
 			Name:     row.Str(8),
 			Symbol:   row.Str(9),
 			Decimals: row.Uint(10),
+			Protocol: row.Str(11),
 		},
-		GiveOut:       row.Uint64(11),
-		Bonus:         row.Uint(12),
-		Status:        row.Uint(13),
-		BalanceStatus: row.Uint(14),
-		StartDate:     row.ForceLocaltime(15),
-		EndDate:       row.ForceLocaltime(16),
-		TelegramGroup: row.Str(17),
+		GiveOut:       row.Uint64(12),
+		Bonus:         row.Uint(13),
+		Status:        row.Uint(14),
+		BalanceStatus: row.Uint(15),
+		StartDate:     row.ForceLocaltime(16),
+		EndDate:       row.ForceLocaltime(17),
+		TelegramGroup: row.Str(18),
 	}
 	airdrop.CheckBalance(Service.Geth, c)
 	promotion := common.Promotion{
@@ -88,8 +91,8 @@ AND p.user_id =%d`
 		AdzoneId:    row.Uint64(1),
 		ChannelId:   row.Uint64(2),
 		Airdrop:     airdrop,
-		ChannelName: row.Str(18),
-		AdzoneName:  row.Str(19),
+		ChannelName: row.Str(19),
+		AdzoneName:  row.Str(20),
 	}
 	promo := common.PromotionProto{
 		Id:        promotion.Id,
@@ -104,5 +107,9 @@ AND p.user_id =%d`
 	}
 	promotion.Key = promoKey
 	promotion.Link = fmt.Sprintf("%s/promo/%s", Config.BaseUrl, promoKey)
+	shortURL, err := shorturl.Sina(promotion.Link)
+	if err == nil && shortURL != "" {
+		promotion.Link = shortURL
+	}
 	c.JSON(http.StatusOK, promotion)
 }

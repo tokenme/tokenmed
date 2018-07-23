@@ -16,8 +16,10 @@ type Config struct {
 	SlackToken                   string `required:"true"`
 	SlackAdminChannelID          string `default:"G9Y7METUG"`
 	GeoIP                        string `required:"true"`
-	TokenSalt                    string `default:"20eefe8d82ba3ca8a417e14a48d24632bc35bbd7"`
-	LinkSalt                     string `default:"20eefe8d82ba3ca8a417e14a48d24632bc35bbd7"`
+	TokenSalt                    string `required:"true"`
+	LinkSalt                     string `required:"true"`
+	OutputKey                    string `required:"true"`
+	OutputSalt                   string `required:"true"`
 	TwilioToken                  string `required:"true"`
 	TelegramBotToken             string `required:"true"`
 	TelegramBotName              string `required:"true"`
@@ -30,8 +32,10 @@ type Config struct {
 	DealerContractCreateGasPrice int64  `default:"8"`
 	DealerContractCreateGasLimit uint64 `default:"210000"`
 	RedPacketIncomeWallet        string `required:"true"`
+	RedPacketOutputWallet        string `required:"true"`
 	RedPacketGasPrice            uint64 `default:"8", required:"true"`
 	RedPacketGasLimit            uint64 `default:"210000", required:"true"`
+	CheckoutFee                  uint64 `default:"100000", required:"true"`
 	EnableWeb                    bool
 	EnableTelegramBot            bool
 	EnableGC                     bool

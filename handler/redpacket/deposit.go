@@ -20,6 +20,7 @@ import (
 type DepositRequest struct {
 	TokenAddress string  `form:"token_address" json:"token_address"`
 	TotalTokens  float64 `form:"total_tokens" json:"total_tokens" binding:"required"`
+	GasPrice     uint64  `form:"gas_price" json:"gas_price"`
 }
 
 func DepositHandler(c *gin.Context) {
@@ -72,6 +73,10 @@ func DepositHandler(c *gin.Context) {
 		totalTokens = new(big.Int).Mul(totalTokensForSave, utils.Pow10(int(token.Decimals)))
 	}
 
+	if req.GasPrice == 0 {
+		req.GasPrice = Config.RedPacketGasPrice
+	}
+
 	query := `SELECT
             uw.wallet,
             uw.salt,
@@ -98,7 +103,7 @@ func DepositHandler(c *gin.Context) {
 		raven.CaptureError(err, nil)
 		return
 	}
-	minGasLimit := new(big.Int).SetUint64(Config.RedPacketGasPrice * Config.RedPacketGasLimit)
+	minGasLimit := new(big.Int).Mul(new(big.Int).SetUint64(req.GasPrice), new(big.Int).SetUint64(Config.RedPacketGasLimit))
 	var minETHGwei *big.Int
 	if req.TokenAddress == "" {
 		totalTokensGwei := new(big.Int).Div(totalTokens, big.NewInt(params.Shannon))
@@ -124,13 +129,13 @@ func DepositHandler(c *gin.Context) {
 	}
 
 	transactor := eth.TransactorAccount(walletPrivateKey)
-	nonce, err := eth.PendingNonce(Service.Geth, c, walletPublicKey)
+	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, walletPublicKey, "main")
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
 	}
 	var tx *types.Transaction
-	gasPrice := new(big.Int).Mul(new(big.Int).SetUint64(Config.RedPacketGasPrice), big.NewInt(params.Shannon))
+	gasPrice := new(big.Int).Mul(new(big.Int).SetUint64(req.GasPrice), big.NewInt(params.Shannon))
 	if req.TokenAddress != "" {
 		transactorOpts := eth.TransactorOptions{
 			Nonce:    nonce,

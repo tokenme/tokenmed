@@ -98,13 +98,15 @@ type UserWallet struct {
 	DepositWallet      string     `json:"deposit_wallet"`
 	RedPacketMinGas    uint64     `json:"rp_min_gas"` // Gwei
 	RedPacketEnoughGas bool       `json:"rp_enough_gas"`
+	CheckoutFee        *big.Int   `json:"checkout_fee"`
 	Funds              []UserFund `json:"funds"`
 }
 
 type UserFund struct {
-	UserId    uint64   `json:"user_id"`
-	Token     Token    `json:"token"`
-	Amount    *big.Int `json:"amount"`
-	Cash      *big.Int `json:"cash"`
-	DepositTx string   `json:"deposit_tx,omitempty"`
+	UserId     uint64   `json:"user_id"`
+	Token      Token    `json:"token"`
+	Amount     *big.Int `json:"amount"`
+	Cash       *big.Int `json:"cash"`
+	DepositTx  string   `json:"deposit_tx,omitempty"`
+	CheckoutTx string   `json:"checkout_tx,omitempty"`
 }

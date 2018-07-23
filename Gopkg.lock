@@ -50,6 +50,23 @@
   version = "v1.1.0"
 
 [[projects]]
+  name = "github.com/didip/tollbooth"
+  packages = [
+    ".",
+    "errors",
+    "libstring",
+    "limiter"
+  ]
+  revision = "c95eaa3ddc98f635a91e218b48727fb2e06613ea"
+  version = "v4.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/didip/tollbooth_gin"
+  packages = ["."]
+  revision = "5752492be5058ef1411a2d508b79be309deaf12f"
+
+[[projects]]
   name = "github.com/dvwright/xss-mw"
   packages = ["."]
   revision = "5b2fd362dcafefa56a87b7a0884a39eaa3c909fc"
@@ -218,6 +235,18 @@
   version = "v1.3.0"
 
 [[projects]]
+  name = "github.com/panjf2000/ants"
+  packages = ["."]
+  revision = "ed55924e35ed21e28dce82ccba8146eef17110e9"
+  version = "v3.6"
+
+[[projects]]
+  name = "github.com/patrickmn/go-cache"
+  packages = ["."]
+  revision = "a3647f8e31d79543b2d0f0ae2fe5c379d72cedc0"
+  version = "v2.1.0"
+
+[[projects]]
   name = "github.com/pborman/uuid"
   packages = ["."]
   revision = "e790cca94e6cc75c7064b1332e63811d4aae1a53"
@@ -296,6 +325,7 @@
   branch = "master"
   name = "golang.org/x/net"
   packages = [
+    "context",
     "html",
     "html/atom",
     "websocket"
@@ -310,6 +340,12 @@
     "windows"
   ]
   revision = "ad87a3a340fa7f3bed189293fbfa7a9b7e021ae1"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/time"
+  packages = ["rate"]
+  revision = "fbb02b2291d28baffd63558aa44b4b56f178d650"
 
 [[projects]]
   branch = "master"
@@ -366,6 +402,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e874405e65c653678eafd0e091528f07138f6956f32c0478ea091f175bb9a651"
+  inputs-digest = "e6cd73edca14fcfe9e216fa7437d00c1f2a7235446f073b2cfebb633b9eae9c4"
   solver-name = "gps-cdcl"
   solver-version = 1

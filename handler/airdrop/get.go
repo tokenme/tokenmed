@@ -19,7 +19,7 @@ func GetHandler(c *gin.Context) {
 		return
 	}
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.telegram_group, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d`, airdropId)
+	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.telegram_group, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d`, airdropId)
 	if CheckErr(err, c) {
 		return
 	}
@@ -41,25 +41,28 @@ func GetHandler(c *gin.Context) {
 				Name:     row.Str(6),
 				Symbol:   row.Str(7),
 				Decimals: row.Uint(8),
+				Protocol: row.Str(9),
 			},
-			GasPrice:      row.Uint64(9),
-			GasLimit:      row.Uint64(10),
-			CommissionFee: row.Uint64(11),
-			GiveOut:       row.Uint64(12),
-			Bonus:         row.Uint(13),
-			Status:        row.Uint(14),
-			BalanceStatus: row.Uint(15),
-			StartDate:     row.ForceLocaltime(16),
-			EndDate:       row.ForceLocaltime(17),
-			TelegramGroup: row.Str(18),
-			Inserted:      row.ForceLocaltime(19),
-			Updated:       row.ForceLocaltime(20),
+			GasPrice:      row.Uint64(10),
+			GasLimit:      row.Uint64(11),
+			CommissionFee: row.Uint64(12),
+			GiveOut:       row.Uint64(13),
+			Bonus:         row.Uint(14),
+			Status:        row.Uint(15),
+			BalanceStatus: row.Uint(16),
+			StartDate:     row.ForceLocaltime(17),
+			EndDate:       row.ForceLocaltime(18),
+			TelegramGroup: row.Str(19),
+			Inserted:      row.ForceLocaltime(20),
+			Updated:       row.ForceLocaltime(21),
 			TelegramBot:   Config.TelegramBotName,
 		}
-		airdrop.CheckBalance(Service.Geth, c)
-		_, _, err = db.Query(`UPDATE tokenme.airdrops SET balance_status=%d WHERE id=%d`, airdrop.BalanceStatus, airdrop.Id)
-		if CheckErr(err, c) {
-			return
+		if airdrop.Token.Protocol == "ERC20" {
+			airdrop.CheckBalance(Service.Geth, c)
+			_, _, err = db.Query(`UPDATE tokenme.airdrops SET balance_status=%d WHERE id=%d`, airdrop.BalanceStatus, airdrop.Id)
+			if CheckErr(err, c) {
+				return
+			}
 		}
 	}
 	c.JSON(http.StatusOK, airdrop)

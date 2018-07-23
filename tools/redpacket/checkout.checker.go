@@ -8,34 +8,34 @@ import (
 	"time"
 )
 
-type DepositChecker struct {
+type CheckoutChecker struct {
 	service *common.Service
 	config  common.Config
 	exitCh  chan struct{}
 }
 
-func NewDepositChecker(service *common.Service, config common.Config) *DepositChecker {
-	return &DepositChecker{
+func NewCheckoutChecker(service *common.Service, config common.Config) *CheckoutChecker {
+	return &CheckoutChecker{
 		service: service,
 		config:  config,
 		exitCh:  make(chan struct{}, 1),
 	}
 }
 
-func (this *DepositChecker) Start() {
-	log.Info("DepositChecker Start")
+func (this *CheckoutChecker) Start() {
+	log.Info("CheckoutChecker Start")
 	ctx, cancel := context.WithCancel(context.Background())
 	go this.CheckLoop(ctx)
 	<-this.exitCh
 	cancel()
 }
 
-func (this *DepositChecker) Stop() {
+func (this *CheckoutChecker) Stop() {
 	close(this.exitCh)
-	log.Info("DepositChecker Stopped")
+	log.Info("CheckoutChecker Stopped")
 }
 
-func (this *DepositChecker) CheckLoop(ctx context.Context) {
+func (this *CheckoutChecker) CheckLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -47,11 +47,11 @@ func (this *DepositChecker) CheckLoop(ctx context.Context) {
 	}
 }
 
-func (this *DepositChecker) Check(ctx context.Context) {
+func (this *CheckoutChecker) Check(ctx context.Context) {
 	db := this.service.Db
 	query := `SELECT
 	tx
-FROM tokenme.deposits
+FROM tokenme.checkouts
 WHERE status=0 AND tx > '%s'
 ORDER BY tx ASC
 LIMIT 1000`
@@ -78,7 +78,7 @@ LIMIT 1000`
 	}
 }
 
-func (this *DepositChecker) CheckStatus(ctx context.Context, tx string) error {
+func (this *CheckoutChecker) CheckStatus(ctx context.Context, tx string) error {
 	receipt, err := ethutils.TransactionReceipt(this.service.Geth, ctx, tx)
 	if err != nil {
 		log.Error(err.Error())
@@ -96,7 +96,7 @@ func (this *DepositChecker) CheckStatus(ctx context.Context, tx string) error {
 		txStatus = 1
 	}
 	db := this.service.Db
-	_, _, err = db.Query(`UPDATE tokenme.deposits SET status=%d WHERE tx='%s'`, txStatus, tx)
+	_, _, err = db.Query(`UPDATE tokenme.checkouts SET status=%d WHERE tx='%s'`, txStatus, tx)
 	if err != nil {
 		log.Error(err.Error())
 		return err

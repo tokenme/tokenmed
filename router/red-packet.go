@@ -49,6 +49,7 @@ func redPacketRouter(r *gin.Engine) {
 		redPacketGroup.GET("/list", redpacket.ListHandler)
 		redPacketGroup.GET("/get", redpacket.GetHandler)
 		redPacketGroup.POST("/deposit", redpacket.DepositHandler)
+		redPacketGroup.POST("/checkout", redpacket.CheckoutHandler)
 	}
 	redPacketShowGroup := r.Group("/red-packet/show")
 	redPacketShowGroup.Use(AuthCheckerFunc())

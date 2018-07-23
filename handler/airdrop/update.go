@@ -1,8 +1,8 @@
 package airdrop
 
 import (
-	//"github.com/davecgh/go-spew/spew"
 	"fmt"
+	//"github.com/davecgh/go-spew/spew"
 	"github.com/gin-gonic/gin"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
@@ -28,7 +28,7 @@ func UpdateHandler(c *gin.Context) {
 		return
 	}
 	user := userContext.(common.User)
-	if Check(user.IsPublisher == 0, "invalid permission", c) {
+	if Check(user.IsPublisher == 0 && user.IsAdmin == 0, "invalid permission", c) {
 		return
 	}
 	var updateFields []string
@@ -46,8 +46,13 @@ func UpdateHandler(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse{Msg: "ok"})
 		return
 	}
+
+	var checkUser string
+	if user.IsAdmin == 0 {
+		checkUser = fmt.Sprintf(" AND user_id=%d", user.Id)
+	}
 	db := Service.Db
-	_, _, err := db.Query(`UPDATE tokenme.airdrops SET %s WHERE id=%d AND user_id=%d LIMIT 1`, strings.Join(updateFields, ","), req.Id, user.Id)
+	_, _, err := db.Query(`UPDATE tokenme.airdrops SET %s WHERE id=%d%s LIMIT 1`, strings.Join(updateFields, ","), req.Id, checkUser)
 	if CheckErr(err, c) {
 		return
 	}

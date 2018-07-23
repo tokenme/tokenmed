@@ -2,12 +2,15 @@ package airdrop
 
 import (
 	"context"
+	"fmt"
+	//"github.com/davecgh/go-spew/spew"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/mkideal/log"
 	"github.com/tokenme/tokenmed/coins/eth"
 	ethutils "github.com/tokenme/tokenmed/coins/eth/utils"
 	"github.com/tokenme/tokenmed/common"
 	"github.com/tokenme/tokenmed/utils"
+	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -18,6 +21,8 @@ import (
 type Airdropper struct {
 	service *common.Service
 	config  common.Config
+	wg      *sync.WaitGroup
+	stopCh  chan struct{}
 	exitCh  chan struct{}
 }
 
@@ -26,6 +31,8 @@ func NewAirdropper(service *common.Service, config common.Config) *Airdropper {
 		service: service,
 		config:  config,
 		exitCh:  make(chan struct{}, 1),
+		stopCh:  make(chan struct{}, 1),
+		wg:      &sync.WaitGroup{},
 	}
 }
 
@@ -38,28 +45,79 @@ func (this *Airdropper) Start() {
 }
 
 func (this *Airdropper) Stop() {
+	this.stopCh <- struct{}{}
+	this.wg.Wait()
 	close(this.exitCh)
 	log.Info("Airdropper Stopped")
 }
 
 func (this *Airdropper) DropLoop(ctx context.Context) {
+	var interval = time.Duration(5)
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-this.stopCh:
+			return
 		default:
-			this.Drop(ctx)
+			newDrop := this.Drop(ctx)
+			if newDrop {
+				interval = time.Duration(1)
+			} else {
+				interval = time.Duration(5)
+			}
 		}
-		time.Sleep(10 * time.Second)
+		time.Sleep(interval * time.Minute)
 	}
 }
 
-func (this *Airdropper) Drop(ctx context.Context) {
+func (this *Airdropper) Drop(ctx context.Context) bool {
 	db := this.service.Db
-	query := `SELECT a.id, a.wallet, a.salt, a.token_address, a.gas_price, a.gas_limit, a.bonus, a.commission_fee, a.give_out, t.decimals, a.dealer_contract FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address = a.token_address) WHERE a.balance_status=0 AND a.approve_tx_status=2 AND a.dealer_tx_status=2 AND EXISTS (SELECT 1 FROM tokenme.airdrop_submissions AS ass WHERE ass.status=0 AND ass.airdrop_id=a.id LIMIT 1) AND NOT EXISTS (SELECT 1 FROM tokenme.airdrop_submissions AS ass WHERE ass.status=1 AND ass.airdrop_id=a.id LIMIT 1) AND a.id> %d AND a.end_date<=DATE(NOW()) ORDER BY a.id DESC LIMIT 1000`
+	query := `SELECT
+	a.id ,
+	a.wallet ,
+	a.salt ,
+	a.token_address ,
+	a.gas_price ,
+	a.gas_limit ,
+	a.bonus ,
+	a.commission_fee ,
+	a.give_out ,
+	t.decimals ,
+	a.dealer_contract,
+	a.sync_drop
+FROM
+	tokenme.airdrops AS a
+INNER JOIN tokenme.tokens AS t ON ( t.address = a.token_address )
+WHERE
+	t.protocol = 'ERC20'
+AND a.balance_status = 0
+AND ((a.approve_tx_status = 2 AND a.dealer_tx_status = 2) OR a.sync_drop=1)
+AND EXISTS ( SELECT
+	1
+FROM
+	tokenme.airdrop_submissions AS ass
+WHERE
+	ass.status IN (0, 2)
+AND ass.airdrop_id = a.id
+AND NOT EXISTS ( SELECT
+	1
+FROM
+	tokenme.airdrop_blacklist AS ab
+WHERE
+	ab.airdrop_id = ass.airdrop_id
+AND (ab.wallet = ass.wallet OR ab.wallet = ass.referrer)
+LIMIT 1 )
+LIMIT 1 )
+AND a.id > %d
+AND a.end_date < DATE( NOW())
+ORDER BY
+	a.id DESC
+LIMIT 100`
 	var (
 		startId uint64
 		endId   uint64
+		ret     bool
 	)
 	for {
 		endId = startId
@@ -86,6 +144,7 @@ func (this *Airdropper) Drop(ctx context.Context) {
 				CommissionFee:  row.Uint64(7),
 				GiveOut:        row.Uint64(8),
 				DealerContract: row.Str(10),
+				SyncDrop:       row.Uint(11),
 			}
 			endId = airdrop.Id
 			wg.Add(1)
@@ -96,6 +155,9 @@ func (this *Airdropper) Drop(ctx context.Context) {
 			airdrops = append(airdrops, airdrop)
 		}
 		wg.Wait()
+		if len(airdrops) > 0 {
+			ret = true
+		}
 		for _, airdrop := range airdrops {
 			this.DropAirdrop(ctx, airdrop)
 		}
@@ -104,11 +166,12 @@ func (this *Airdropper) Drop(ctx context.Context) {
 		}
 		startId = endId
 	}
+	return ret
 }
 
 func (this *Airdropper) DropAirdrop(ctx context.Context, airdrop *common.Airdrop) {
 	db := this.service.Db
-	rows, _, err := db.Query(`SELECT COUNT(*) AS num FROM tokenme.airdrop_submissions WHERE status!=2 AND airdrop_id=%d`, airdrop.Id)
+	rows, _, err := db.Query(`SELECT COUNT(*) AS num FROM tokenme.airdrop_submissions WHERE status IN (0, 3) AND airdrop_id=%d`, airdrop.Id)
 	if err != nil {
 		log.Error(err.Error())
 		return
@@ -126,23 +189,52 @@ func (this *Airdropper) DropAirdrop(ctx context.Context, airdrop *common.Airdrop
 		log.Error("Not enough token, need:%d, left:%d", tokenNeed.Uint64(), airdrop.TokenBalance.Uint64())
 		return
 	}
-	token, err := ethutils.NewStandardToken(airdrop.Token.Address, this.service.Geth)
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-	allowance, err := ethutils.StandardTokenAllowance(token, airdrop.Wallet, airdrop.DealerContract)
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-	if allowance.Cmp(tokenNeed) == -1 {
-		db.Query("UPDATE tokenme.airdrops SET allowance=0, approve_tx_status=0 WHERE id=%d", airdrop.Id)
-		log.Error("Not enough allowance, need:%d, left:%d, contract:%s", tokenNeed.Uint64(), allowance.Uint64(), airdrop.DealerContract)
-		return
+	if airdrop.SyncDrop == 0 {
+		token, err := ethutils.NewStandardToken(airdrop.Token.Address, this.service.Geth)
+		if err != nil {
+			log.Error(err.Error())
+			return
+		}
+		allowance, err := ethutils.StandardTokenAllowance(token, airdrop.Wallet, airdrop.DealerContract)
+		if err != nil {
+			log.Error(err.Error())
+			return
+		}
+		if allowance.Cmp(tokenNeed) == -1 {
+			db.Query("UPDATE tokenme.airdrops SET allowance=0, approve_tx_status=0 WHERE id=%d", airdrop.Id)
+			log.Error("Not enough allowance, need:%d, left:%d, contract:%s", tokenNeed.Uint64(), allowance.Uint64(), airdrop.DealerContract)
+			return
+		}
 	}
 
-	query := `SELECT ass.id, ass.promotion_id, ass.adzone_id, ass.channel_id, ass.promoter_id, ass.wallet, ass.referrer, u.wallet, u.salt FROM tokenme.airdrop_submissions AS ass INNER JOIN tokenme.user_wallets AS u ON (u.user_id=ass.promoter_id AND u.token_type='ETH' AND u.is_main=1) WHERE ass.status=0 AND ass.airdrop_id=%d ORDER BY id DESC LIMIT 100`
+	query := `SELECT
+	ass.id ,
+	ass.promotion_id ,
+	ass.adzone_id ,
+	ass.channel_id ,
+	ass.promoter_id ,
+	ass.wallet ,
+	ass.referrer ,
+	u.wallet ,
+	u.salt
+FROM
+	tokenme.airdrop_submissions AS ass
+INNER JOIN tokenme.user_wallets AS u ON ( u.user_id = ass.promoter_id
+AND u.token_type = 'ETH'
+AND u.is_main = 1 )
+WHERE
+	ass.status IN (0, 3)
+AND NOT EXISTS ( SELECT
+	1
+FROM
+	tokenme.airdrop_blacklist AS ab
+WHERE
+	ab.airdrop_id = ass.airdrop_id
+AND (ab.wallet = ass.wallet OR ab.wallet = ass.referrer)
+LIMIT 1 )
+AND ass.airdrop_id = %d
+ORDER BY
+	id DESC LIMIT 1000`
 	var submissions []*common.AirdropSubmission
 	rows, _, err = db.Query(query, airdrop.Id)
 	if err != nil {
@@ -174,33 +266,22 @@ func (this *Airdropper) DropAirdrop(ctx context.Context, airdrop *common.Airdrop
 		}
 		submissions = append(submissions, submission)
 	}
-	this.DropAirdropChunk(ctx, airdrop, submissions)
+	if airdrop.SyncDrop == 0 {
+		this.DropAirdropChunk(ctx, airdrop, submissions)
+	} else {
+		this.DropAirdropSync(ctx, airdrop, submissions)
+	}
 }
 
-func (this *Airdropper) DropAirdropChunk(ctx context.Context, airdrop *common.Airdrop, submissions []*common.AirdropSubmission) {
+func (this *Airdropper) PrepareAirdrop(ctx context.Context, airdrop *common.Airdrop, submissions []*common.AirdropSubmission) {
+
 	totalSubmissions := int64(len(submissions))
 	if totalSubmissions == 0 {
 		return
 	}
-	log.Info("Airdroping %d submissions for airdrop:%d", totalSubmissions, airdrop.Id)
-	nonce, err := eth.PendingNonce(this.service.Geth, ctx, airdrop.Wallet)
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
-	transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
-
-	transactorOpts := eth.TransactorOptions{
-		Nonce:    nonce,
-		Value:    airdrop.CommissionFeeToWei(),
-		GasPrice: airdrop.GasPriceToWei(),
-		GasLimit: airdrop.GasLimit,
-	}
-	eth.TransactorUpdate(transactor, transactorOpts, ctx)
+	log.Info("Prepareing %d submissions for airdrop:%d", totalSubmissions, airdrop.Id)
 	var (
 		recipientsMap = make(map[string]*big.Int)
-		tokenAmounts  []*big.Int
-		recipients    []ethcommon.Address
 		promoWallet   = submissions[0].PromoterWallet
 	)
 	for _, submission := range submissions {
@@ -218,36 +299,203 @@ func (this *Airdropper) DropAirdropChunk(ctx context.Context, airdrop *common.Ai
 				recipientsMap[promoWallet] = airdrop.TokenBonus()
 			}
 		}
+	}
+	var val []string
+	db := this.service.Db
+	decimalsPow := new(big.Int).SetUint64(uint64(math.Pow10(int(airdrop.Token.Decimals))))
+	for addr, amount := range recipientsMap {
+		value := new(big.Int).Div(amount, decimalsPow)
+		val = append(val, fmt.Sprintf("(%d, '%s', %d)", airdrop.Id, db.Escape(addr), value.Uint64()))
+		if len(val) > 1000 {
+			_, _, err := db.Query(`INSERT INTO tokenme.airdrop_prepares (airdrop_id, wallet, amount) VALUES %s ON DUPLICATE KEY UPDATE amount=VALUES(amount)`, strings.Join(val, ","))
+			if err != nil {
+				log.Error(err.Error())
+			}
+			val = []string{}
+		}
+	}
+
+	if len(val) > 0 {
+		_, _, err := db.Query(`INSERT INTO tokenme.airdrop_prepares (airdrop_id, wallet, amount) VALUES %s ON DUPLICATE KEY UPDATE amount=VALUES(amount)`, strings.Join(val, ","))
+		if err != nil {
+			log.Error(err.Error())
+		}
+		val = []string{}
+	}
+}
+
+func (this *Airdropper) DropAirdropSync(ctx context.Context, airdrop *common.Airdrop, submissions []*common.AirdropSubmission) {
+	totalSubmissions := int64(len(submissions))
+	if totalSubmissions == 0 {
+		return
+	}
+	log.Info("Sync Airdroping %d submissions for airdrop:%d", totalSubmissions, airdrop.Id)
+	var (
+		promoWallet     = submissions[0].PromoterWallet
+		promotionAmount *big.Int
+	)
+	for _, submission := range submissions {
+		amount := airdrop.TokenGiveOut()
+		addr := submission.Wallet
+		this.transfer(ctx, airdrop, submission.Id, addr, amount, false)
+		if submission.Proto.Referrer != "" {
+			amount := airdrop.TokenBonus()
+			addr := submission.Proto.Referrer
+			this.transfer(ctx, airdrop, submission.Id, addr, amount, true)
+		} else if promoWallet != submission.Wallet {
+			if promotionAmount != nil {
+				promotionAmount = new(big.Int).Add(promotionAmount, airdrop.TokenBonus())
+			} else {
+				promotionAmount = airdrop.TokenBonus()
+			}
+		}
+	}
+	if promotionAmount != nil {
+		this.transfer(ctx, airdrop, 0, promoWallet, promotionAmount, true)
+	}
+}
+
+func (this *Airdropper) transfer(ctx context.Context, airdrop *common.Airdrop, submissionId uint64, addr string, amount *big.Int, isReferrer bool) error {
+	log.Info("W: %s, V: %d", addr, amount)
+	token, err := ethutils.NewToken(airdrop.Token.Address, this.service.Geth)
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+	transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
+	nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+	transactorOpts := eth.TransactorOptions{
+		Nonce:    nonce,
+		GasPrice: airdrop.GasPriceToWei(),
+		GasLimit: airdrop.GasLimit,
+	}
+	eth.TransactorUpdate(transactor, transactorOpts, ctx)
+	tx, err := ethutils.Transfer(token, transactor, addr, amount)
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+	eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+	if !isReferrer {
+		txHash := tx.Hash()
+		db := this.service.Db
+		_, _, err = db.Query(`UPDATE tokenme.airdrop_submissions SET status=1, tx='%s' WHERE airdrop_id=%d AND id=%d`, db.Escape(txHash.Hex()), airdrop.Id, submissionId)
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
+	}
+	return nil
+}
+
+func (this *Airdropper) DropAirdropChunk(ctx context.Context, airdrop *common.Airdrop, submissions []*common.AirdropSubmission) {
+	totalSubmissions := int64(len(submissions))
+	if totalSubmissions == 0 {
+		return
+	}
+	log.Info("Async Airdroping %d submissions for airdrop:%d", totalSubmissions, airdrop.Id)
+	var (
+		recipientsMap = make(map[string]*big.Int)
+		promoWallet   = submissions[0].PromoterWallet
+		submissionMap = make(map[string]uint64)
+	)
+	for _, submission := range submissions {
+		recipientsMap[submission.Wallet] = airdrop.TokenGiveOut()
+		submissionMap[submission.Wallet] = submission.Id
+		if submission.Proto.Referrer != "" {
+			if _, found := recipientsMap[submission.Proto.Referrer]; found {
+				recipientsMap[submission.Proto.Referrer] = new(big.Int).Add(recipientsMap[submission.Proto.Referrer], airdrop.TokenBonus())
+			} else {
+				recipientsMap[submission.Proto.Referrer] = airdrop.TokenBonus()
+			}
+		} else if promoWallet != submission.Wallet {
+			if _, found := recipientsMap[promoWallet]; found {
+				recipientsMap[promoWallet] = new(big.Int).Add(recipientsMap[promoWallet], airdrop.TokenBonus())
+			} else {
+				recipientsMap[promoWallet] = airdrop.TokenBonus()
+			}
+		}
 
 	}
+
+	var (
+		tokenAmounts  []*big.Int
+		recipients    []ethcommon.Address
+		submissionIds []uint64
+	)
 	for addr, amount := range recipientsMap {
 		recipients = append(recipients, ethcommon.HexToAddress(addr))
 		tokenAmounts = append(tokenAmounts, amount)
+		if id, found := submissionMap[addr]; found {
+			submissionIds = append(submissionIds, id)
+		}
+		if len(recipients) >= 10 {
+			this.DropChunk(ctx, airdrop, submissionIds, recipients, tokenAmounts)
+			recipients = []ethcommon.Address{}
+			tokenAmounts = []*big.Int{}
+			submissionIds = []uint64{}
+		}
 	}
-	multiSenderContract, err := ethutils.NewMultiSendERC20Dealer(airdrop.DealerContract, this.service.Geth)
+	if len(recipients) > 0 {
+		this.DropChunk(ctx, airdrop, submissionIds, recipients, tokenAmounts)
+		recipients = []ethcommon.Address{}
+		tokenAmounts = []*big.Int{}
+		submissionIds = []uint64{}
+	}
+
+	log.Info("Async Done %d submissions for airdrop:%d", totalSubmissions, airdrop.Id)
+}
+
+func (this *Airdropper) DropChunk(ctx context.Context, airdrop *common.Airdrop, submissionIds []uint64, recipients []ethcommon.Address, tokenAmounts []*big.Int) error {
+	this.wg.Add(1)
+	defer this.wg.Done()
+	airdropper, err := ethutils.NewAirdropper(airdrop.DealerContract, this.service.Geth)
 	if err != nil {
 		log.Error(err.Error())
-		return
+		return err
 	}
-	tx, err := ethutils.MultiSendERC20DealerTransfer(multiSenderContract, transactor, airdrop.Token.Address, airdrop.Wallet, this.config.DealerIncomeWallet, airdrop.CommissionFeeToWei(), recipients, tokenAmounts)
+
+	transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
+
+	nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
 	if err != nil {
 		log.Error(err.Error())
-		return
+		return err
 	}
+	transactorOpts := eth.TransactorOptions{
+		Nonce:    nonce,
+		GasPrice: airdrop.GasPriceToWei(),
+		GasLimit: this.config.DealerContractCreateGasLimit,
+	}
+	eth.TransactorUpdate(transactor, transactorOpts, ctx)
+	tx, err := ethutils.AirdropperDrop(airdropper, transactor, recipients, tokenAmounts)
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+	eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
 	txHash := tx.Hash()
+	log.Info("tx: %s, nonce: %d", txHash.Hex(), nonce)
 	db := this.service.Db
 	_, _, err = db.Query(`INSERT IGNORE INTO tokenme.airdrop_tx (tx, airdrop_id) VALUES ('%s', %d)`, txHash.Hex(), airdrop.Id)
 	if err != nil {
 		log.Error(err.Error())
-		return
+		return err
 	}
-	var ids []string
-	for _, submission := range submissions {
-		ids = append(ids, strconv.FormatUint(submission.Id, 10))
+	if len(submissionIds) > 0 {
+		var ids []string
+		for _, id := range submissionIds {
+			ids = append(ids, strconv.FormatUint(id, 10))
+		}
+		_, _, err = db.Query(`UPDATE tokenme.airdrop_submissions SET status=1, tx='%s' WHERE airdrop_id=%d AND id IN (%s)`, db.Escape(txHash.Hex()), airdrop.Id, strings.Join(ids, ","))
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
 	}
-	_, _, err = db.Query(`UPDATE tokenme.airdrop_submissions SET status=1, tx='%s' WHERE airdrop_id=%d AND id IN (%s)`, db.Escape(txHash.Hex()), airdrop.Id, strings.Join(ids, ","))
-	if err != nil {
-		log.Error(err.Error())
-		return
-	}
+	return nil
 }

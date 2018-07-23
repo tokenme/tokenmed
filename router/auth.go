@@ -46,6 +46,37 @@ var AuthMiddleware = &jwt.GinJWTMiddleware{
 	TimeFunc: time.Now,
 }
 
+var AuthQueryMiddleware = &jwt.GinJWTMiddleware{
+	Realm:         AUTH_REALM,
+	Key:           AUTH_KEY,
+	Timeout:       AUTH_TIMEOUT,
+	MaxRefresh:    AUTH_MAXREFRESH,
+	Authenticator: auth.AuthenticatorFunc,
+	Authorizator:  auth.AuthorizatorFunc,
+	Unauthorized: func(c *gin.Context, code int, message string) {
+		c.JSON(code, gin.H{
+			"code":    code,
+			"message": message,
+		})
+	},
+	// TokenLookup is a string in the form of "<source>:<name>" that is used
+	// to extract token from the request.
+	// Optional. Default value "header:Authorization".
+	// Possible values:
+	// - "header:<name>"
+	// - "query:<name>"
+	// - "cookie:<name>"
+	TokenLookup: "query:jwt",
+	// TokenLookup: "query:token",
+	// TokenLookup: "cookie:token",
+
+	// TokenHeadName is a string in the header. Default value is "Bearer"
+	TokenHeadName: "Bearer",
+
+	// TimeFunc provides the current time. You can override it to use another time value. This is useful for testing or if your server uses a different time zone than your tokens.
+	TimeFunc: time.Now,
+}
+
 func authRouter(r *gin.Engine) {
 
 	r.POST("/login", AuthMiddleware.LoginHandler)

@@ -25,9 +25,9 @@ func ListHandler(c *gin.Context) {
 		where  string
 		wheres []string
 	)
-	if user.IsPublisher != 0 {
+	if user.IsPublisher != 0 || user.IsAdmin != 0 {
 		var subWhere []string
-		if c.Query("mine") != "" {
+		if user.IsAdmin == 0 {
 			subWhere = append(subWhere, fmt.Sprintf("a.user_id=%d", user.Id))
 		}
 		status, _ := Uint64Value(c.Query("status"), 10)
@@ -59,7 +59,7 @@ func ListHandler(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.telegram_group, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
+	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.telegram_group, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
 	if CheckErr(err, c) {
 		return
 	}
@@ -81,32 +81,37 @@ func ListHandler(c *gin.Context) {
 				Name:     row.Str(6),
 				Symbol:   row.Str(7),
 				Decimals: row.Uint(8),
+				Protocol: row.Str(9),
 			},
-			GasPrice:      row.Uint64(9),
-			GasLimit:      row.Uint64(10),
-			CommissionFee: row.Uint64(11),
-			GiveOut:       row.Uint64(12),
-			Bonus:         row.Uint(13),
-			Status:        row.Uint(14),
-			BalanceStatus: row.Uint(15),
-			StartDate:     row.ForceLocaltime(16),
-			EndDate:       row.ForceLocaltime(17),
+			GasPrice:      row.Uint64(10),
+			GasLimit:      row.Uint64(11),
+			CommissionFee: row.Uint64(12),
+			GiveOut:       row.Uint64(13),
+			Bonus:         row.Uint(14),
+			Status:        row.Uint(15),
+			BalanceStatus: row.Uint(16),
+			StartDate:     row.ForceLocaltime(17),
+			EndDate:       row.ForceLocaltime(18),
 			TelegramBot:   Config.TelegramBotName,
-			TelegramGroup: row.Str(18),
-			Inserted:      row.ForceLocaltime(19),
-			Updated:       row.ForceLocaltime(20),
+			TelegramGroup: row.Str(19),
+			Inserted:      row.ForceLocaltime(20),
+			Updated:       row.ForceLocaltime(21),
 		}
-		wg.Add(1)
-		go func(airdrop *common.Airdrop, c *gin.Context) {
-			defer wg.Done()
-			airdrop.CheckBalance(Service.Geth, c)
-		}(airdrop, c)
+		if airdrop.Token.Protocol == "ERC20" {
+			wg.Add(1)
+			go func(airdrop *common.Airdrop, c *gin.Context) {
+				defer wg.Done()
+				airdrop.CheckBalance(Service.Geth, c)
+			}(airdrop, c)
+		}
 		airdrops = append(airdrops, airdrop)
 	}
 	wg.Wait()
 	var val []string
 	for _, a := range airdrops {
-		val = append(val, fmt.Sprintf("(%d, %d)", a.Id, a.BalanceStatus))
+		if a.Token.Protocol == "ERC20" {
+			val = append(val, fmt.Sprintf("(%d, %d)", a.Id, a.BalanceStatus))
+		}
 	}
 	if len(val) > 0 {
 		_, _, err = db.Query(`INSERT INTO tokenme.airdrops (id, balance_status) VALUES %s ON DUPLICATE KEY UPDATE balance_status=VALUES(balance_status)`, strings.Join(val, ","))

@@ -57,7 +57,41 @@ func (this *DealerContractDeployer) DeployLoop(ctx context.Context) {
 
 func (this *DealerContractDeployer) Deploy(ctx context.Context) {
 	db := this.service.Db
-	query := `SELECT id, wallet, salt, dealer_tx, dealer_tx_status FROM tokenme.airdrops WHERE balance_status=0 AND dealer_tx_status<2 AND end_date>=DATE(NOW()) AND id> %d ORDER BY id DESC LIMIT 1000`
+	query := `SELECT
+	a.id ,
+	a.wallet ,
+	a.salt ,
+	a.dealer_tx ,
+	a.dealer_tx_status,
+	a.token_address
+FROM
+	tokenme.airdrops AS a
+INNER JOIN tokenme.tokens AS t ON ( t.address = a.token_address )
+WHERE
+	t.protocol = 'ERC20'
+AND a.balance_status = 0
+AND a.dealer_tx_status < 2
+AND a.end_date < DATE( NOW())
+AND EXISTS ( SELECT
+	1
+FROM
+	tokenme.airdrop_submissions AS ass
+WHERE
+	NOT EXISTS ( SELECT
+		1
+	FROM
+		tokenme.airdrop_blacklist AS ab
+	WHERE
+		ab.airdrop_id = ass.airdrop_id
+	AND (ab.wallet = ass.wallet OR ab.wallet = ass.referrer)
+	LIMIT 1 )
+	AND ass.airdrop_id = a.id
+	LIMIT 1 )
+	AND a.sync_drop = 0
+	AND a.id > %d
+	ORDER BY
+		a.id DESC
+	LIMIT 1000`
 	var (
 		startId uint64
 		endId   uint64
@@ -85,6 +119,9 @@ func (this *DealerContractDeployer) Deploy(ctx context.Context) {
 				WalletPrivKey:  privateKey,
 				DealerTx:       row.Str(3),
 				DealerTxStatus: row.Uint(4),
+				Token: common.Token{
+					Address: row.Str(5),
+				},
 			}
 			endId = airdrop.Id
 			wg.Add(1)
@@ -126,22 +163,22 @@ func (this *DealerContractDeployer) DeployAirdrop(airdrop *common.Airdrop, ctx c
 	db := this.service.Db
 	if airdrop.DealerTxStatus == 0 {
 		transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
-		nonce, err := eth.PendingNonce(this.service.Geth, ctx, airdrop.Wallet)
+		nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
 		if err != nil {
 			log.Error(err.Error())
 			return err
 		}
 		transactorOpts := eth.TransactorOptions{
 			Nonce:    nonce,
-			GasPrice: big.NewInt(this.config.DealerContractCreateGasPrice * params.Shannon),
 			GasLimit: this.config.DealerContractCreateGasLimit,
 		}
 		eth.TransactorUpdate(transactor, transactorOpts, ctx)
-		contractAddress, tx, _, err := ethutils.DeployMultiSendERC20Dealer(transactor, this.service.Geth)
+		contractAddress, tx, _, err := ethutils.DeployAirdropper(transactor, this.service.Geth, airdrop.Token.Address)
 		if err != nil {
 			log.Error(err.Error())
 			return err
 		}
+		eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
 		txHash := tx.Hash()
 		_, _, err = db.Query(`UPDATE tokenme.airdrops SET dealer_contract='%s', dealer_tx='%s', dealer_tx_status=1 WHERE id=%d`, contractAddress.Hex(), txHash.Hex(), airdrop.Id)
 		if err != nil {
