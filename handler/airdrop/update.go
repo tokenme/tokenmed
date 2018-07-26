@@ -4,10 +4,12 @@ import (
 	"fmt"
 	//"github.com/davecgh/go-spew/spew"
 	"github.com/gin-gonic/gin"
+	//"github.com/mkideal/log"
 	"github.com/tokenme/tokenmed/common"
 	. "github.com/tokenme/tokenmed/handler"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type UpdateRequest struct {
@@ -15,6 +17,7 @@ type UpdateRequest struct {
 	GasPrice uint64 `form:"gas_price" json:"gas_price"`
 	GasLimit uint64 `form:"gas_limit" json:"gas_limit"`
 	GiveOut  uint64 `form:"give_out" json:"give_out"`
+	DropDate int64  `form:"drop_date" json:"drop_date"`
 	Status   uint   `form:"status" json:"status"`
 }
 
@@ -40,6 +43,9 @@ func UpdateHandler(c *gin.Context) {
 	}
 	if req.GiveOut > 0 {
 		updateFields = append(updateFields, fmt.Sprintf("give_out=%d", req.GiveOut))
+	}
+	if req.DropDate > 0 {
+		updateFields = append(updateFields, fmt.Sprintf("drop_date='%s'", time.Unix(req.DropDate/1000, 0).Format("2006-01-02")))
 	}
 	updateFields = append(updateFields, fmt.Sprintf("status=%d", req.Status))
 	if len(updateFields) == 0 {

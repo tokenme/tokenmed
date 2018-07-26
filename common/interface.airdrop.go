@@ -57,6 +57,7 @@ type Airdrop struct {
 	ApproveTxStatus  uint                 `json:"-"`
 	StartDate        time.Time            `json:"start_date"`
 	EndDate          time.Time            `json:"end_date"`
+	DropDate         time.Time            `json:"drop_date"`
 	Inserted         time.Time            `json:"inserted"`
 	Updated          time.Time            `json:"updated"`
 	TelegramBot      string               `json:"telegram_bot"`

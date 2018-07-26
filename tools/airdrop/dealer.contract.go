@@ -71,21 +71,14 @@ WHERE
 	t.protocol = 'ERC20'
 AND a.balance_status = 0
 AND a.dealer_tx_status < 2
-AND a.end_date < DATE( NOW())
+AND a.drop_date <= DATE( NOW())
 AND EXISTS ( SELECT
 	1
 FROM
 	tokenme.airdrop_submissions AS ass
 WHERE
-	NOT EXISTS ( SELECT
-		1
-	FROM
-		tokenme.airdrop_blacklist AS ab
-	WHERE
-		ab.airdrop_id = ass.airdrop_id
-	AND (ab.wallet = ass.wallet OR ab.wallet = ass.referrer)
-	LIMIT 1 )
-	AND ass.airdrop_id = a.id
+	ass.airdrop_id = a.id
+	AND ass.blocked=0
 	LIMIT 1 )
 	AND a.sync_drop = 0
 	AND a.id > %d

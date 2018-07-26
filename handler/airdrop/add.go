@@ -15,7 +15,7 @@ type AddRequest struct {
 	Title         string `form:"title" json:"title" binding:"required"`
 	TokenAddress  string `form:"token_address" json:"token_address" binding:"required"`
 	GasPrice      uint64 `form:"gas_price" json:"gas_price" binding:"required"`
-	GasLimit      uint64 `form:"gas_limit" json:"gas_limit" binding:"required"`
+	GasLimit      uint64 `form:"gas_limit" json:"gas_limit"`
 	GiveOut       uint64 `form:"give_out" json:"give_out" binding:"required"`
 	Bonus         uint   `form:"bonus" json:"bonus" binding:"required"`
 	TelegramGroup string `form:"telegram_group" json:"telegram_group" binding:"required"`
@@ -59,6 +59,9 @@ func AddHandler(c *gin.Context) {
 	if CheckErr(err, c) {
 		return
 	}
+	if req.GasLimit == 0 {
+		req.GasLimit = 420000
+	}
 	now := time.Now()
 	airdrop := common.Airdrop{
 		User:          common.User{Id: user.Id, Email: user.Email},
@@ -79,7 +82,8 @@ func AddHandler(c *gin.Context) {
 		Inserted:      now,
 		Updated:       now,
 	}
-	_, ret, err := db.Query(`INSERT INTO tokenme.airdrops (user_id, title, wallet, salt, token_address, gas_price, gas_limit, commission_fee, give_out, bonus, start_date, end_date, telegram_group) VALUES (%d, '%s', '%s', '%s', '%s', %d, %d, %d, %d, %d, '%s', '%s', '%s')`, user.Id, db.Escape(airdrop.Title), db.Escape(wallet), db.Escape(salt), db.Escape(token.Address), airdrop.GasPrice, airdrop.GasLimit, airdrop.CommissionFee, airdrop.GiveOut, airdrop.Bonus, db.Escape(airdrop.StartDate.Format("2006-01-02")), db.Escape(airdrop.EndDate.Format("2006-01-02")), db.Escape(airdrop.TelegramGroup))
+	airdrop.DropDate = airdrop.EndDate.Add(24 * time.Hour)
+	_, ret, err := db.Query(`INSERT INTO tokenme.airdrops (user_id, title, wallet, salt, token_address, gas_price, gas_limit, commission_fee, give_out, bonus, start_date, end_date, drop_date, telegram_group) VALUES (%d, '%s', '%s', '%s', '%s', %d, %d, %d, %d, %d, '%s', '%s', '%s', '%s')`, user.Id, db.Escape(airdrop.Title), db.Escape(wallet), db.Escape(salt), db.Escape(token.Address), airdrop.GasPrice, airdrop.GasLimit, airdrop.CommissionFee, airdrop.GiveOut, airdrop.Bonus, db.Escape(airdrop.StartDate.Format("2006-01-02")), db.Escape(airdrop.EndDate.Format("2006-01-02")), db.Escape(airdrop.DropDate.Format("2006-01-02")), db.Escape(airdrop.TelegramGroup))
 	if CheckErr(err, c) {
 		return
 	}

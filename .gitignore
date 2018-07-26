@@ -16,5 +16,6 @@
 ui
 config.yml
 config.toml
+config-dev.toml
 vendor/*
 tmp

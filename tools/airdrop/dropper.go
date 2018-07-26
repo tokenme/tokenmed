@@ -53,6 +53,13 @@ func (this *Airdropper) Stop() {
 
 func (this *Airdropper) DropLoop(ctx context.Context) {
 	var interval = time.Duration(5)
+	newDrop := this.Drop(ctx)
+	if newDrop {
+		interval = time.Duration(1)
+	} else {
+		interval = time.Duration(5)
+	}
+	time.Sleep(interval * time.Minute)
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,17 +107,10 @@ FROM
 WHERE
 	ass.status IN (0, 2)
 AND ass.airdrop_id = a.id
-AND NOT EXISTS ( SELECT
-	1
-FROM
-	tokenme.airdrop_blacklist AS ab
-WHERE
-	ab.airdrop_id = ass.airdrop_id
-AND (ab.wallet = ass.wallet OR ab.wallet = ass.referrer)
-LIMIT 1 )
+AND ass.blocked = 0
 LIMIT 1 )
 AND a.id > %d
-AND a.end_date < DATE( NOW())
+AND a.drop_date <= DATE( NOW())
 ORDER BY
 	a.id DESC
 LIMIT 100`
@@ -180,33 +180,35 @@ func (this *Airdropper) DropAirdrop(ctx context.Context, airdrop *common.Airdrop
 	if totalSubmissions == 0 {
 		return
 	}
-	gasNeed, tokenNeed, enoughGas, enoughToken := airdrop.EnoughBudgetForSubmissions(totalSubmissions)
-	if !enoughGas {
-		log.Error("Not enough gas, need:%d, left:%d", gasNeed.Uint64(), airdrop.GasBalance.Uint64())
-		return
-	}
-	if !enoughToken {
-		log.Error("Not enough token, need:%d, left:%d", tokenNeed.Uint64(), airdrop.TokenBalance.Uint64())
-		return
-	}
-	if airdrop.SyncDrop == 0 {
-		token, err := ethutils.NewStandardToken(airdrop.Token.Address, this.service.Geth)
-		if err != nil {
-			log.Error(err.Error())
-			return
-		}
-		allowance, err := ethutils.StandardTokenAllowance(token, airdrop.Wallet, airdrop.DealerContract)
-		if err != nil {
-			log.Error(err.Error())
-			return
-		}
-		if allowance.Cmp(tokenNeed) == -1 {
-			db.Query("UPDATE tokenme.airdrops SET allowance=0, approve_tx_status=0 WHERE id=%d", airdrop.Id)
-			log.Error("Not enough allowance, need:%d, left:%d, contract:%s", tokenNeed.Uint64(), allowance.Uint64(), airdrop.DealerContract)
-			return
-		}
-	}
+	/*
+			gasNeed, tokenNeed, enoughGas, enoughToken := airdrop.EnoughBudgetForSubmissions(totalSubmissions)
+			if !enoughGas {
+				log.Error("Not enough gas, need:%d, left:%d", gasNeed.Uint64(), airdrop.GasBalance.Uint64())
+				return
+			}
+			if !enoughToken {
+				log.Error("Not enough token, need:%d, left:%d", tokenNeed.Uint64(), airdrop.TokenBalance.Uint64())
+				return
+			}
 
+		if airdrop.SyncDrop == 0 {
+			token, err := ethutils.NewStandardToken(airdrop.Token.Address, this.service.Geth)
+			if err != nil {
+				log.Error(err.Error())
+				return
+			}
+			allowance, err := ethutils.StandardTokenAllowance(token, airdrop.Wallet, airdrop.DealerContract)
+			if err != nil {
+				log.Error(err.Error())
+				return
+			}
+			if allowance.Cmp(tokenNeed) == -1 {
+				db.Query("UPDATE tokenme.airdrops SET allowance=0, approve_tx_status=0 WHERE id=%d", airdrop.Id)
+				log.Error("Not enough allowance, need:%d, left:%d, contract:%s", tokenNeed.Uint64(), allowance.Uint64(), airdrop.DealerContract)
+				return
+			}
+		}
+	*/
 	query := `SELECT
 	ass.id ,
 	ass.promotion_id ,
@@ -224,14 +226,7 @@ AND u.token_type = 'ETH'
 AND u.is_main = 1 )
 WHERE
 	ass.status IN (0, 3)
-AND NOT EXISTS ( SELECT
-	1
-FROM
-	tokenme.airdrop_blacklist AS ab
-WHERE
-	ab.airdrop_id = ass.airdrop_id
-AND (ab.wallet = ass.wallet OR ab.wallet = ass.referrer)
-LIMIT 1 )
+AND ass.blocked = 0
 AND ass.airdrop_id = %d
 ORDER BY
 	id DESC LIMIT 1000`

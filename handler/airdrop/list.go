@@ -59,7 +59,7 @@ func ListHandler(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.telegram_group, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
+	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.drop_date, a.telegram_group, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
 	if CheckErr(err, c) {
 		return
 	}
@@ -92,10 +92,11 @@ func ListHandler(c *gin.Context) {
 			BalanceStatus: row.Uint(16),
 			StartDate:     row.ForceLocaltime(17),
 			EndDate:       row.ForceLocaltime(18),
+			DropDate:      row.ForceLocaltime(19),
 			TelegramBot:   Config.TelegramBotName,
-			TelegramGroup: row.Str(19),
-			Inserted:      row.ForceLocaltime(20),
-			Updated:       row.ForceLocaltime(21),
+			TelegramGroup: row.Str(20),
+			Inserted:      row.ForceLocaltime(21),
+			Updated:       row.ForceLocaltime(22),
 		}
 		if airdrop.Token.Protocol == "ERC20" {
 			wg.Add(1)

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/getsentry/raven-go"
 	"github.com/gin-gonic/gin"
+	//"github.com/mkideal/log"
 	"github.com/tokenme/tokenmed/coins/eth"
 	ethutils "github.com/tokenme/tokenmed/coins/eth/utils"
 	"github.com/tokenme/tokenmed/common"
@@ -28,6 +29,9 @@ type WithdrawRequest struct {
 func WithdrawHandler(c *gin.Context) {
 	var req WithdrawRequest
 	if CheckErr(c.Bind(&req), c) {
+		return
+	}
+	if Check(req.TokenAmount > 0 && req.Ether > 0, "please transfer token and ether seperatly", c) {
 		return
 	}
 	userContext, exists := c.Get("USER")
@@ -74,7 +78,7 @@ WHERE uw.user_id=%d AND uw.is_main=1`
 		return
 	}
 
-	rows, _, err = db.Query(`SELECT t.address, t.name, t.symbol, t.decimals, t.protocol, a.wallet, a.salt FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d AND t.protocol="ERC20" AND a.user_id=%d LIMIT 1`, req.AirdropId, user.Id)
+	rows, _, err = db.Query(`SELECT t.address, t.name, t.symbol, t.decimals, t.protocol, a.wallet, a.salt FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d AND t.protocol="ERC20" AND (a.user_id=%d OR EXISTS (SELECT 1 FROM tokenme.users WHERE id=%d AND is_admin=1 LIMIT 1)) LIMIT 1`, req.AirdropId, user.Id, user.Id)
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
@@ -99,7 +103,6 @@ WHERE uw.user_id=%d AND uw.is_main=1`
 	if CheckErr(err, c) {
 		return
 	}
-
 	var (
 		totalTokens *big.Int
 		totalEther  *big.Int
@@ -116,6 +119,9 @@ WHERE uw.user_id=%d AND uw.is_main=1`
 	totalEther = new(big.Int).Mul(totalEtherForSave, big.NewInt(params.Ether))
 	totalEther = new(big.Int).Div(totalEther, utils.Pow40)
 
+	if totalEther.Cmp(big.NewInt(0)) != 1 {
+		totalEther = nil
+	}
 	transactor := eth.TransactorAccount(privateKey)
 	nonce, err := eth.PendingNonce(Service.Geth, c, publicKey)
 	if CheckErr(err, c) {
@@ -125,7 +131,7 @@ WHERE uw.user_id=%d AND uw.is_main=1`
 	transactorOpts := eth.TransactorOptions{
 		Nonce:    nonce,
 		GasPrice: gasPrice,
-		GasLimit: Config.RedPacketGasLimit,
+		GasLimit: 210000,
 		Value:    totalEther,
 	}
 	eth.TransactorUpdate(transactor, transactorOpts, c)
