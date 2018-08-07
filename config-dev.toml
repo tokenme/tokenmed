@@ -6,6 +6,8 @@ CDNUrl = "https://static.tianxi100.com/"
 
 RedPacketShareLink = "https://tokenmama.io/rp.html#/show/"
 
+RedPacketWechatShareLink = "https://tmm.tianxi100.com/rp.html#/show/"
+
 Port = 8007
 
 LogPath = "/tmp/tokenme"
@@ -39,6 +41,14 @@ TelegramBotName = "TokenmeBot"
 WXAppId = "wxed7bca95735072e9"
 
 WXSecret = "57d8cd91005b4e916dc9f4bb563f06ec"
+
+WXMPAppId = "wx6182a0d7008cbe4a"
+
+WXMPSecret = "ce47477d2171cac278f62deffae3458a"
+
+WXMPToken = "815a71fb334412e7ba4595741c5a111d"
+
+WXMPEncodingAESKey = "V5WxwecSkj4VTGg99bRVab9fyOZL4ES1x5QX7M54Mg9"
 
 SentryDSN = "https://b7c6f2e4200a444c99f6b92aca5c372c:849b8bfea55c4d4cbca578ec68a861bb@sentry.io/994357"
 

@@ -76,8 +76,14 @@ func GetHandler(c *gin.Context) {
 			}
 		}
 		if rp.FundTxStatus == 2 || rp.FundTxStatus == 0 {
+            var shareLink string
+            if IsWeixinBrowser(c) {
+                shareLink = Config.RedPacketWechatShareLink
+            } else {
+                shareLink = Config.RedPacketShareLink
+            }
 			rp.HashKey, _ = common.EncodeRedPacketLink([]byte(Config.LinkSalt), rp.Id)
-			rp.Link = fmt.Sprintf("%s%s", Config.RedPacketShareLink, rp.HashKey)
+			rp.Link = fmt.Sprintf("%s%s", shareLink, rp.HashKey)
 			rp.ShortUrl = rp.GetShortUrl(Service)
 		}
 	}

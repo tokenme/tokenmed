@@ -116,3 +116,12 @@ func ClientIP(c *gin.Context) string {
 	}
 	return ""
 }
+
+func IsWeixinBrowser(c *gin.Context) bool {
+    ua := c.Request.UserAgent()
+    if ua != "" {
+        ua = strings.ToLower(ua)
+        return strings.Contains(ua, "micromessenger")
+    }
+    return false
+}
