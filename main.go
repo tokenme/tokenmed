@@ -114,7 +114,6 @@ func main() {
 			log.Error(err.Error())
 		}
 	}
-
 	gcHandler := gc.New(service, config)
 	if config.EnableGC {
 		go gcHandler.Start()

@@ -9,11 +9,15 @@ import (
 	"github.com/tokenme/tokenmed/tools/shorturl"
 	"github.com/tokenme/tokenmed/utils/token"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
+var Email string = "^(((([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+(\\.([a-zA-Z]|\\d|[!#\\$%&'\\*\\+\\-\\/=\\?\\^_`{\\|}~]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])+)*)|((\\x22)((((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(([\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]|\\x21|[\\x23-\\x5b]|[\\x5d-\\x7e]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(\\([\\x01-\\x09\\x0b\\x0c\\x0d-\\x7f]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}]))))*(((\\x20|\\x09)*(\\x0d\\x0a))?(\\x20|\\x09)+)?(\\x22)))@((([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|\\.|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|\\d|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.)+(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])|(([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])([a-zA-Z]|\\d|-|_|~|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])*([a-zA-Z]|[\\x{00A0}-\\x{D7FF}\\x{F900}-\\x{FDCF}\\x{FDF0}-\\x{FFEF}])))\\.?$"
+
 type SubmitRequest struct {
 	Wallet   string      `json:"wallet,omitempty"`
+	Email    string      `json:"email,omitempty"`
 	Code     token.Token `json:"verify_code,omitempty"`
 	ProtoKey string      `json:"proto,omitempty"`
 }
@@ -30,7 +34,7 @@ func SubmitHandler(c *gin.Context) {
 	}
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT t.protocol FROM tokenme.tokens AS t INNER JOIN tokenme.airdrops AS a ON (a.token_address=t.address) WHERE a.id=%d LIMIT 1`, proto.AirdropId)
+	rows, _, err := db.Query(`SELECT t.protocol, a.require_email FROM tokenme.tokens AS t INNER JOIN tokenme.airdrops AS a ON (a.token_address=t.address) WHERE a.id=%d LIMIT 1`, proto.AirdropId)
 	if CheckErr(err, c) {
 		log.Error(err.Error())
 		return
@@ -39,15 +43,35 @@ func SubmitHandler(c *gin.Context) {
 		return
 	}
 	protocol := rows[0].Str(0)
+	requireEmail := rows[0].Uint(1)
+	emailRegex := regexp.MustCompile(Email)
+	if Check(requireEmail > 0 && (req.Email == "" || !emailRegex.MatchString(req.Email)), "invalid email address", c) {
+		return
+	}
 	if Check(protocol == "ERC20" && (len(req.Wallet) != 42 || !strings.HasPrefix(req.Wallet, "0x")), "invalid wallet", c) {
 		return
 	}
-	_, _, err = db.Query("DELETE FROM tokenme.codes WHERE wallet='%s' AND airdrop_id=%d AND `status`!=2", db.Escape(req.Wallet), proto.AirdropId)
+	rows, _, err = db.Query("SELECT id FROM tokenme.codes WHERE wallet='%s' AND airdrop_id=%d LIMIT 1", db.Escape(req.Wallet), proto.AirdropId)
 	if CheckErr(err, c) {
 		log.Error(err.Error())
 		return
 	}
-	_, _, err = db.Query("UPDATE tokenme.codes SET wallet='%s', referrer='%s', `status`=1 WHERE id=%d AND `status`=0", db.Escape(req.Wallet), db.Escape(proto.Referrer), req.Code)
+	if len(rows) > 0 {
+		promotion, err := getPromotionLink(proto, req.Wallet)
+		if CheckErr(err, c) {
+			log.Error(err.Error())
+			return
+		}
+		code := token.Token(rows[0].Uint64(0))
+		promotion.VerifyCode = code
+		c.JSON(http.StatusOK, promotion)
+		return
+	}
+	var email = "NULL"
+	if req.Email != "" && requireEmail > 0 {
+		email = fmt.Sprintf("'%s'", db.Escape(req.Email))
+	}
+	_, _, err = db.Query("UPDATE tokenme.codes SET wallet='%s', email=%s, referrer='%s', `status`=1 WHERE id=%d AND `status`=0", db.Escape(req.Wallet), email, db.Escape(proto.Referrer), req.Code)
 	//if strings.Contains(err.Error(), "Duplicate entry") {
 	//	err = nil
 	//}

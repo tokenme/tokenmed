@@ -12,15 +12,17 @@ import (
 )
 
 type AddRequest struct {
-	Title         string `form:"title" json:"title" binding:"required"`
-	TokenAddress  string `form:"token_address" json:"token_address" binding:"required"`
-	GasPrice      uint64 `form:"gas_price" json:"gas_price" binding:"required"`
-	GasLimit      uint64 `form:"gas_limit" json:"gas_limit"`
-	GiveOut       uint64 `form:"give_out" json:"give_out" binding:"required"`
-	Bonus         uint   `form:"bonus" json:"bonus" binding:"required"`
-	TelegramGroup string `form:"telegram_group" json:"telegram_group" binding:"required"`
-	StartDate     int64  `form:"start_date" json:"start_date" binding:"required"`
-	EndDate       int64  `form:"end_date" json:"end_date" binding:"required"`
+	Title          string `form:"title" json:"title" binding:"required"`
+	TokenAddress   string `form:"token_address" json:"token_address" binding:"required"`
+	GasPrice       uint64 `form:"gas_price" json:"gas_price" binding:"required"`
+	GasLimit       uint64 `form:"gas_limit" json:"gas_limit"`
+	GiveOut        uint64 `form:"give_out" json:"give_out" binding:"required"`
+	Bonus          uint   `form:"bonus" json:"bonus" binding:"required"`
+	RequireEmail   uint   `form:"require_email" json:"require_email" binding:"required"`
+	TelegramGroup  string `form:"telegram_group" json:"telegram_group" binding:"required"`
+	StartDate      int64  `form:"start_date" json:"start_date" binding:"required"`
+	EndDate        int64  `form:"end_date" json:"end_date" binding:"required"`
+	MaxSubmissions uint	  `form:"max_submissions json:"max_submissions"`
 }
 
 func AddHandler(c *gin.Context) {
@@ -73,17 +75,19 @@ func AddHandler(c *gin.Context) {
 		GasLimit:      req.GasLimit,
 		GiveOut:       req.GiveOut,
 		Bonus:         req.Bonus,
+		RequireEmail:  req.RequireEmail,
 		TelegramGroup: req.TelegramGroup,
 		StartDate:     time.Unix(req.StartDate/1000, 0),
 		EndDate:       time.Unix(req.EndDate/1000, 0),
 		Status:        common.AirdropStatusStop,
 		BalanceStatus: common.AirdropBalanceStatusEmpty,
 		CommissionFee: Config.AirdropCommissionFee,
+		MaxSubmissions: req.MaxSubmissions,
 		Inserted:      now,
 		Updated:       now,
 	}
 	airdrop.DropDate = airdrop.EndDate.Add(24 * time.Hour)
-	_, ret, err := db.Query(`INSERT INTO tokenme.airdrops (user_id, title, wallet, salt, token_address, gas_price, gas_limit, commission_fee, give_out, bonus, start_date, end_date, drop_date, telegram_group) VALUES (%d, '%s', '%s', '%s', '%s', %d, %d, %d, %d, %d, '%s', '%s', '%s', '%s')`, user.Id, db.Escape(airdrop.Title), db.Escape(wallet), db.Escape(salt), db.Escape(token.Address), airdrop.GasPrice, airdrop.GasLimit, airdrop.CommissionFee, airdrop.GiveOut, airdrop.Bonus, db.Escape(airdrop.StartDate.Format("2006-01-02")), db.Escape(airdrop.EndDate.Format("2006-01-02")), db.Escape(airdrop.DropDate.Format("2006-01-02")), db.Escape(airdrop.TelegramGroup))
+	_, ret, err := db.Query(`INSERT INTO tokenme.airdrops (user_id, title, wallet, salt, token_address, gas_price, gas_limit, commission_fee, give_out, bonus, start_date, end_date, drop_date, telegram_group, require_email, max_submissions) VALUES (%d, '%s', '%s', '%s', '%s', %d, %d, %d, %d, %d, '%s', '%s', '%s', '%s', %d, %d)`, user.Id, db.Escape(airdrop.Title), db.Escape(wallet), db.Escape(salt), db.Escape(token.Address), airdrop.GasPrice, airdrop.GasLimit, airdrop.CommissionFee, airdrop.GiveOut, airdrop.Bonus, db.Escape(airdrop.StartDate.Format("2006-01-02")), db.Escape(airdrop.EndDate.Format("2006-01-02")), db.Escape(airdrop.DropDate.Format("2006-01-02")), db.Escape(airdrop.TelegramGroup), airdrop.RequireEmail, airdrop.MaxSubmissions)
 	if CheckErr(err, c) {
 		return
 	}

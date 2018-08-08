@@ -27,7 +27,7 @@ func SubmissionExportHandler(c *gin.Context) {
 	if user.IsAdmin != 1 {
 		where = fmt.Sprintf(" AND user_id=%d", user.Id)
 	}
-	rows, _, err := db.Query(`SELECT a.start_date, a.end_date FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d%s`, airdropId, where)
+	rows, _, err := db.Query(`SELECT a.start_date, a.end_date, require_email FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) WHERE a.id=%d%s`, airdropId, where)
 	if CheckErr(err, c) {
 		return
 	}
@@ -37,7 +37,7 @@ func SubmissionExportHandler(c *gin.Context) {
 	}
 	airdropStartDate := rows[0].ForceLocaltime(0)
 	airdropEndDate := rows[0].ForceLocaltime(1)
-
+	requireEmail := rows[0].Uint(2)
 	startDateStr := c.Query("start_date")
 	endDateStr := c.Query("end_date")
 
@@ -70,13 +70,19 @@ func SubmissionExportHandler(c *gin.Context) {
 	if startDate.After(endDate) {
 		startDate = endDate.AddDate(0, 0, -30)
 	}
-	rows, _, err = db.Query(`SELECT wallet, referrer, status, telegram_user_id, telegram_username, telegram_user_firstname, telegram_user_lastname, tx, inserted, updated FROM tokenme.airdrop_submissions WHERE airdrop_id=%d AND inserted>='%s' AND inserted<='%s' ORDER BY inserted ASC`, airdropId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	query := `SELECT wallet, referrer, status, telegram_user_id, telegram_username, telegram_user_firstname, telegram_user_lastname, tx, inserted, updated FROM tokenme.airdrop_submissions WHERE airdrop_id=%d AND inserted>='%s' AND inserted<='%s' ORDER BY inserted ASC`
+	fields := []string{"wallet", "referrer", "status", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}
+	if requireEmail > 0 {
+		query = `SELECT wallet, referrer, status, email, telegram_user_id, telegram_username, telegram_user_firstname, telegram_user_lastname, tx, inserted, updated FROM tokenme.airdrop_submissions WHERE airdrop_id=%d AND inserted>='%s' AND inserted<='%s' ORDER BY inserted ASC`
+		fields = []string{"wallet", "referrer", "status", "email", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}
+	}
+	rows, _, err = db.Query(query, airdropId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 	if CheckErr(err, c) {
 		return
 	}
 	buf := new(bytes.Buffer)
 	w := csv.NewWriter(buf)
-	lines := [][]string{[]string{"wallet", "referrer", "status", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}}
+	lines := [][]string{fields}
 	for _, row := range rows {
 		var status string
 		switch row.Uint(2) {
@@ -89,17 +95,34 @@ func SubmissionExportHandler(c *gin.Context) {
 		case 3:
 			status = "failed"
 		}
-		line := []string{
-			row.Str(0),
-			row.Str(1),
-			status,
-			strconv.FormatInt(row.Int64(3), 10),
-			row.Str(4),
-			row.Str(5),
-			row.Str(6),
-			row.Str(7),
-			row.ForceLocaltime(8).Format(time.RFC3339),
-			row.ForceLocaltime(9).Format(time.RFC3339),
+		var line []string
+		if requireEmail > 0 {
+			line = []string{
+				row.Str(0),
+				row.Str(1),
+				status,
+				row.Str(3),
+				strconv.FormatInt(row.Int64(4), 10),
+				row.Str(5),
+				row.Str(6),
+				row.Str(7),
+				row.Str(8),
+				row.ForceLocaltime(9).Format(time.RFC3339),
+				row.ForceLocaltime(10).Format(time.RFC3339),
+			}
+		} else {
+			line = []string{
+				row.Str(0),
+				row.Str(1),
+				status,
+				strconv.FormatInt(row.Int64(3), 10),
+				row.Str(4),
+				row.Str(5),
+				row.Str(6),
+				row.Str(7),
+				row.ForceLocaltime(8).Format(time.RFC3339),
+				row.ForceLocaltime(9).Format(time.RFC3339),
+			}
 		}
 		lines = append(lines, line)
 	}

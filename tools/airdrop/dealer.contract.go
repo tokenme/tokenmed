@@ -72,6 +72,8 @@ WHERE
 AND a.balance_status = 0
 AND a.dealer_tx_status < 2
 AND a.drop_date <= DATE( NOW())
+AND a.sync_drop = 0
+AND a.no_drop = 0
 AND EXISTS ( SELECT
 	1
 FROM
@@ -80,7 +82,6 @@ WHERE
 	ass.airdrop_id = a.id
 	AND ass.blocked=0
 	LIMIT 1 )
-	AND a.sync_drop = 0
 	AND a.id > %d
 	ORDER BY
 		a.id DESC

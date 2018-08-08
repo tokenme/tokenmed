@@ -48,6 +48,7 @@ type Airdrop struct {
 	TokenBalance     *big.Int             `json:"token_balance"`
 	Status           AirdropStatus        `json:"status"`
 	BalanceStatus    AirdropBalanceStatus `json:"balance_status"`
+	MaxSubmissions 	 uint 				  `json:"max_submissions,omitempty"`
 	DealerContract   string               `json:"-"`
 	DealerTx         string               `json:"-"`
 	DealerTxStatus   uint                 `json:"-"`
@@ -61,8 +62,10 @@ type Airdrop struct {
 	Inserted         time.Time            `json:"inserted"`
 	Updated          time.Time            `json:"updated"`
 	TelegramBot      string               `json:"telegram_bot"`
+	RequireEmail     uint                 `json:"require_email,omitempty"`
 	Intro            string               `json:"intro,omitempty"`
 	SyncDrop         uint                 `json:"-"`
+	NoDrop 			 uint 				  `json:"-"`
 }
 
 type AirdropStats struct {

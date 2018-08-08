@@ -13,12 +13,13 @@ import (
 )
 
 type UpdateRequest struct {
-	Id       uint64 `form:"id" json:"id" binding:"required"`
-	GasPrice uint64 `form:"gas_price" json:"gas_price"`
-	GasLimit uint64 `form:"gas_limit" json:"gas_limit"`
-	GiveOut  uint64 `form:"give_out" json:"give_out"`
-	DropDate int64  `form:"drop_date" json:"drop_date"`
-	Status   uint   `form:"status" json:"status"`
+	Id       	   uint64 `form:"id" json:"id" binding:"required"`
+	GasPrice 	   uint64 `form:"gas_price" json:"gas_price"`
+	GasLimit 	   uint64 `form:"gas_limit" json:"gas_limit"`
+	GiveOut  	   uint64 `form:"give_out" json:"give_out"`
+	DropDate 	   int64  `form:"drop_date" json:"drop_date"`
+	MaxSubmissions int   `form:"max_submissions" json:"max_submissions"`
+	Status   	   uint   `form:"status" json:"status"`
 }
 
 func UpdateHandler(c *gin.Context) {
@@ -47,6 +48,7 @@ func UpdateHandler(c *gin.Context) {
 	if req.DropDate > 0 {
 		updateFields = append(updateFields, fmt.Sprintf("drop_date='%s'", time.Unix(req.DropDate/1000, 0).Format("2006-01-02")))
 	}
+	updateFields = append(updateFields, fmt.Sprintf("max_submissions=%d", req.MaxSubmissions))
 	updateFields = append(updateFields, fmt.Sprintf("status=%d", req.Status))
 	if len(updateFields) == 0 {
 		c.JSON(http.StatusOK, APIResponse{Msg: "ok"})

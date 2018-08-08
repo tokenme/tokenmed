@@ -59,7 +59,7 @@ func ListHandler(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.drop_date, a.telegram_group, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
+	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.drop_date, a.telegram_group, a.require_email, a.max_submissions, a.no_drop, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
 	if CheckErr(err, c) {
 		return
 	}
@@ -71,11 +71,11 @@ func ListHandler(c *gin.Context) {
 		privateKey, _ := utils.AddressDecrypt(wallet, salt, Config.TokenSalt)
 		publicKey, _ := eth.AddressFromHexPrivateKey(privateKey)
 		airdrop := &common.Airdrop{
-			Id:            row.Uint64(0),
-			User:          common.User{Id: row.Uint64(1)},
-			Title:         row.Str(2),
-			Wallet:        publicKey,
-			WalletPrivKey: privateKey,
+			Id:             row.Uint64(0),
+			User:           common.User{Id: row.Uint64(1)},
+			Title:          row.Str(2),
+			Wallet:         publicKey,
+			WalletPrivKey:  privateKey,
 			Token: common.Token{
 				Address:  row.Str(5),
 				Name:     row.Str(6),
@@ -83,20 +83,23 @@ func ListHandler(c *gin.Context) {
 				Decimals: row.Uint(8),
 				Protocol: row.Str(9),
 			},
-			GasPrice:      row.Uint64(10),
-			GasLimit:      row.Uint64(11),
-			CommissionFee: row.Uint64(12),
-			GiveOut:       row.Uint64(13),
-			Bonus:         row.Uint(14),
-			Status:        row.Uint(15),
-			BalanceStatus: row.Uint(16),
-			StartDate:     row.ForceLocaltime(17),
-			EndDate:       row.ForceLocaltime(18),
-			DropDate:      row.ForceLocaltime(19),
-			TelegramBot:   Config.TelegramBotName,
-			TelegramGroup: row.Str(20),
-			Inserted:      row.ForceLocaltime(21),
-			Updated:       row.ForceLocaltime(22),
+			GasPrice:       row.Uint64(10),
+			GasLimit:       row.Uint64(11),
+			CommissionFee:  row.Uint64(12),
+			GiveOut:        row.Uint64(13),
+			Bonus:          row.Uint(14),
+			Status:         row.Uint(15),
+			BalanceStatus:  row.Uint(16),
+			StartDate:      row.ForceLocaltime(17),
+			EndDate:        row.ForceLocaltime(18),
+			DropDate:       row.ForceLocaltime(19),
+			TelegramBot:    Config.TelegramBotName,
+			TelegramGroup:  row.Str(20),
+			RequireEmail:   row.Uint(21),
+			MaxSubmissions: row.Uint(22),
+			NoDrop: 	    row.Uint(23),
+			Inserted:       row.ForceLocaltime(24),
+			Updated:        row.ForceLocaltime(25),
 		}
 		if airdrop.Token.Protocol == "ERC20" {
 			wg.Add(1)
@@ -110,7 +113,7 @@ func ListHandler(c *gin.Context) {
 	wg.Wait()
 	var val []string
 	for _, a := range airdrops {
-		if a.Token.Protocol == "ERC20" {
+		if a.Token.Protocol == "ERC20" && a.NoDrop == 0 {
 			val = append(val, fmt.Sprintf("(%d, %d)", a.Id, a.BalanceStatus))
 		}
 	}
