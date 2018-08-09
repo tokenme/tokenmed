@@ -62,3 +62,18 @@ func WechatMpGetJs(c *gin.Context) {
         c.JSON(http.StatusOK, cfg)
     }
 }
+
+func WechatMpGetMiniVerifyStatusHandler(c *gin.Context) {
+    db := Service.Db
+    rows, _, err := db.Query(`SELECT status FROM tokenme.wx_mini_verify_status`)
+	if CheckErr(err, c) {
+		// raven.CaptureError(err, nil)
+		return
+	}
+    if Check(len(rows) == 0, "missing wechat mini verify status", c) {
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{
+        "status": rows[0].Int(0),
+    })
+}

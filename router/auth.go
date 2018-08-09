@@ -94,4 +94,5 @@ func authRouter(r *gin.Engine) {
     wechatMpGroup.GET("/get-js", auth.WechatMpGetJs)
     wechatMpGroup.GET("/get-code", auth.WechatMpGetCodeHandler)
     wechatMpGroup.GET("/get-user-info", auth.WechatMpGetUserInfoHandler)
+    wechatMpGroup.GET("/get-mini-verifiy-status", auth.WechatMpGetMiniVerifyStatusHandler)
 }
