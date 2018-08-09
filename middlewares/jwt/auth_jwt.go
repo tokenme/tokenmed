@@ -76,10 +76,13 @@ type GinJWTMiddleware struct {
 
 // Login form structure.
 type Login struct {
-	Username string `form:"username" json:"username"`
-	Password string `form:"password" json:"password"`
-	Telegram string `form:"telegram" json:"telegram"`
-	Wechat   string `form:"wechat" json:"wechat"`
+	Username            string `form:"username"         json:"username"`
+	Password            string `form:"password"         json:"password"`
+	Telegram            string `form:"telegram"         json:"telegram"`
+	Wechat              string `form:"wechat"           json:"wechat"`
+    WechatMPCode        string `form:"wechat_mp_code"   json:"wechat_mp_code"`
+	WechatIv            string `from:"wechat_iv"        json:"wechat_iv"`
+	WechatEncryptedData string `from:"wechat_encrypted_data" json:"wechat_encrypted_data"`
 }
 
 // MiddlewareInit initialize jwt configs.

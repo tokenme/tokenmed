@@ -374,7 +374,13 @@ GROUP BY
 	}
 	if Service.Slack != nil {
 		linkKey, _ := common.EncodeRedPacketLink([]byte(Config.LinkSalt), rp.Id)
-		rp.Link = fmt.Sprintf("%s%s", Config.RedPacketShareLink, linkKey)
+        var shareLink string
+        if IsWeixinBrowser(c) {
+            shareLink = Config.RedPacketWechatShareLink
+        } else {
+            shareLink = Config.RedPacketShareLink
+        }
+		rp.Link = fmt.Sprintf("%s%s", shareLink, linkKey)
 		rp.ShortUrl = rp.GetShortUrl(Service)
 
 		params := slack.PostMessageParameters{}

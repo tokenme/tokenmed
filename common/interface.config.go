@@ -4,6 +4,7 @@ type Config struct {
 	AppName                      string      `default:"tokenmed"`
 	BaseUrl                      string      `default:"https://tokenmama.io"`
 	CDNUrl                       string      `default:"https://static.tianxi100.com/"`
+	RedPacketWechatShareLink     string      `default:"https://tmm.tianxi100.com/rp.html#/show/"`
 	RedPacketShareLink           string      `default:"https://tokenmama.io/rp.html#/show/"`
 	Port                         int         `default:"11151"`
 	UI                           string      `default:"./ui/dist"`
@@ -25,6 +26,10 @@ type Config struct {
 	TelegramBotName              string `required:"true"`
 	WXAppId                      string `required:"true"`
 	WXSecret                     string `required:"true"`
+    WXMPAppId                    string `required:"true"`
+    WXMPSecret                   string `required:"true"`
+    WXMPToken                    string `required:"true"`
+    WXMPEncodingAESKey           string `required:"true"`
 	SentryDSN                    string `default:"https://b7c6f2e4200a444c99f6b92aca5c372c:849b8bfea55c4d4cbca578ec68a861bb@sentry.io/994357"`
 	AirdropCommissionFee         uint64 `default:"4"`
 	RedPacketCommissionFee       uint64 `default:"50"`

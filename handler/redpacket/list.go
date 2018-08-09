@@ -84,7 +84,13 @@ func ListHandler(c *gin.Context) {
 			}
 			if rp.FundTxStatus == 2 || rp.FundTxStatus == 0 {
 				linkKey, _ := common.EncodeRedPacketLink([]byte(Config.LinkSalt), rp.Id)
-				rp.Link = fmt.Sprintf("%s%s", Config.RedPacketShareLink, linkKey)
+                var shareLink string
+                if IsWeixinBrowser(c) {
+                    shareLink = Config.RedPacketWechatShareLink
+                } else {
+                    shareLink = Config.RedPacketShareLink
+                }
+				rp.Link = fmt.Sprintf("%s%s", shareLink, linkKey)
 			}
 		}(rp)
 		redPackets = append(redPackets, rp)

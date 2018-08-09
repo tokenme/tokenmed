@@ -76,7 +76,14 @@ func ShowHandler(c *gin.Context) {
 		Status:      row.Uint(12),
 	}
 	linkKey, _ := common.EncodeRedPacketLink([]byte(Config.LinkSalt), rp.Id)
-	rp.Link = fmt.Sprintf("%s%s", Config.RedPacketShareLink, linkKey)
+
+    var shareLink string
+    if IsWeixinBrowser(c) {
+        shareLink = Config.RedPacketWechatShareLink
+    } else {
+        shareLink = Config.RedPacketShareLink
+    }
+	rp.Link = fmt.Sprintf("%s%s", shareLink, linkKey)
 	rp.ShortUrl = rp.GetShortUrl(Service)
 
 	if rp.ExpireTime.Before(time.Now()) {
