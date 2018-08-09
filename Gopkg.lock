@@ -21,6 +21,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/bradfitz/gomemcache"
+  packages = ["memcache"]
+  revision = "bc664df9673713a0ccf26e3b55a673ec7301088b"
+
+[[projects]]
+  branch = "master"
   name = "github.com/btcsuite/btcd"
   packages = ["btcec"]
   revision = "86fed781132ac890ee03e906e4ecd5d6fa180c64"
@@ -272,6 +278,26 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/silenceper/wechat"
+  packages = [
+    ".",
+    "cache",
+    "context",
+    "js",
+    "material",
+    "menu",
+    "message",
+    "oauth",
+    "pay",
+    "server",
+    "template",
+    "user",
+    "util"
+  ]
+  revision = "6ac7e1142f6b8d19df4782760b52de3d8472b1dc"
+
+[[projects]]
+  branch = "master"
   name = "github.com/syndtr/goleveldb"
   packages = [
     "leveldb",
@@ -402,6 +428,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e6cd73edca14fcfe9e216fa7437d00c1f2a7235446f073b2cfebb633b9eae9c4"
+  inputs-digest = "3f5e9090a7515cd6d314c477db19421862daa3d08daad25efdad161189b894ed"
   solver-name = "gps-cdcl"
   solver-version = 1

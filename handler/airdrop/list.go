@@ -59,7 +59,7 @@ func ListHandler(c *gin.Context) {
 	offset := (page - 1) * pageSize
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.drop_date, a.telegram_group, a.require_email, a.max_submissions, a.no_drop, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
+	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.drop_date, a.telegram_group, a.require_email, a.max_submissions, a.no_drop, a.reply_msg, a.inserted, a.updated FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) %s ORDER BY a.id DESC LIMIT %d, %d`, where, offset, pageSize)
 	if CheckErr(err, c) {
 		return
 	}
@@ -98,8 +98,9 @@ func ListHandler(c *gin.Context) {
 			RequireEmail:   row.Uint(21),
 			MaxSubmissions: row.Uint(22),
 			NoDrop: 	    row.Uint(23),
-			Inserted:       row.ForceLocaltime(24),
-			Updated:        row.ForceLocaltime(25),
+			ReplyMsg:       row.Str(24),
+			Inserted:       row.ForceLocaltime(25),
+			Updated:        row.ForceLocaltime(26),
 		}
 		if airdrop.Token.Protocol == "ERC20" {
 			wg.Add(1)

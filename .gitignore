@@ -19,3 +19,4 @@ config.toml
 config-dev.toml
 vendor/*
 tmp
+tools/bin/test

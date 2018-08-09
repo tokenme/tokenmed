@@ -10,6 +10,7 @@ import (
 	"github.com/tokenme/tokenmed/tools/tracker"
 	"github.com/tokenme/tokenmed/utils/token"
 	"gopkg.in/telegram-bot-api.v4"
+	"github.com/tokenme/tokenmed/tools/shorturl"
 	"regexp"
 	"strconv"
 	"sync"
@@ -126,7 +127,7 @@ func (this *Bot) VerifyCodeHandler(msg Message) {
 	message := msg.Message
 	log.Info("Verify chat:%s, user:%s, code:%d", message.Chat.UserName, message.From.UserName, msg.Code)
 	db := this.Service.Db
-	rows, _, err := db.Query(`SELECT c.status, c.promotion_id, c.adzone_id, c.channel_id, c.promoter_id, c.airdrop_id, a.telegram_group, c.wallet, c.referrer, c.email, a.telegram_admin FROM tokenme.codes AS c LEFT JOIN tokenme.airdrops AS a ON (a.id=c.airdrop_id) WHERE c.id=%d LIMIT 1`, msg.Code)
+	rows, _, err := db.Query(`SELECT c.status, c.promotion_id, c.adzone_id, c.channel_id, c.promoter_id, c.airdrop_id, a.telegram_group, c.wallet, c.referrer, c.email, a.telegram_admin, a.reply_msg FROM tokenme.codes AS c LEFT JOIN tokenme.airdrops AS a ON (a.id=c.airdrop_id) WHERE c.id=%d LIMIT 1`, msg.Code)
 	if err != nil {
 		reply = "Sorry, we have some internal server bug :("
 	}
@@ -146,6 +147,7 @@ func (this *Bot) VerifyCodeHandler(msg Message) {
 		referrer := rows[0].Str(8)
 		email := rows[0].Str(9)
 		telegramAdmin := rows[0].Str(10)
+		replyMsg := rows[0].Str(11)
 		if email == "" {
 			email = "NULL"
 		} else {
@@ -172,7 +174,21 @@ func (this *Bot) VerifyCodeHandler(msg Message) {
 			} else if ret.AffectedRows() == 0 {
 				reply = "Sorry, you already submitted in this airdrop and could not submit again"
 			} else {
-				reply = "Great! please wait for the airdrop transaction complete"
+				if replyMsg == "" {
+					reply = "Great! please wait for the airdrop transaction complete."
+				} else {
+					reply = replyMsg
+				}
+				proto.Referrer = wallet
+				promoKey, err := common.EncodePromotion([]byte(this.Config.LinkSalt), proto)
+				if err == nil {
+					link := fmt.Sprintf("%s/promo/%s", this.Config.BaseUrl, promoKey)
+					shortURL, err := shorturl.Sina(link)
+					if err == nil && shortURL != "" {
+						link = shortURL
+					}
+					reply = fmt.Sprintf("%s %s", reply, link)
+				}
 				this.Tracker.Promotion.Submission(proto)
 			}
 		} else if codeStatus == 2 {

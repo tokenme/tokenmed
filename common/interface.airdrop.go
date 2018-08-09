@@ -64,6 +64,7 @@ type Airdrop struct {
 	TelegramBot      string               `json:"telegram_bot"`
 	RequireEmail     uint                 `json:"require_email,omitempty"`
 	Intro            string               `json:"intro,omitempty"`
+	ReplyMsg         string				  `json:"reply_msg,omitempty"`
 	SyncDrop         uint                 `json:"-"`
 	NoDrop 			 uint 				  `json:"-"`
 }

@@ -18,7 +18,8 @@ type UpdateRequest struct {
 	GasLimit 	   uint64 `form:"gas_limit" json:"gas_limit"`
 	GiveOut  	   uint64 `form:"give_out" json:"give_out"`
 	DropDate 	   int64  `form:"drop_date" json:"drop_date"`
-	MaxSubmissions int   `form:"max_submissions" json:"max_submissions"`
+	MaxSubmissions int    `form:"max_submissions" json:"max_submissions"`
+	ReplyMsg 	   string `form:"reply_msg" json:"reply_msg"`
 	Status   	   uint   `form:"status" json:"status"`
 }
 
@@ -35,6 +36,7 @@ func UpdateHandler(c *gin.Context) {
 	if Check(user.IsPublisher == 0 && user.IsAdmin == 0, "invalid permission", c) {
 		return
 	}
+	db := Service.Db
 	var updateFields []string
 	if req.GasPrice > 0 {
 		updateFields = append(updateFields, fmt.Sprintf("gas_price=%d", req.GasPrice))
@@ -48,6 +50,11 @@ func UpdateHandler(c *gin.Context) {
 	if req.DropDate > 0 {
 		updateFields = append(updateFields, fmt.Sprintf("drop_date='%s'", time.Unix(req.DropDate/1000, 0).Format("2006-01-02")))
 	}
+	replyMsg := "NULL"
+	if req.ReplyMsg != "" {
+		replyMsg = fmt.Sprintf("'%s'", db.Escape(req.ReplyMsg))
+	}
+	updateFields = append(updateFields, fmt.Sprintf("reply_msg=%s", replyMsg))
 	updateFields = append(updateFields, fmt.Sprintf("max_submissions=%d", req.MaxSubmissions))
 	updateFields = append(updateFields, fmt.Sprintf("status=%d", req.Status))
 	if len(updateFields) == 0 {
@@ -59,7 +66,6 @@ func UpdateHandler(c *gin.Context) {
 	if user.IsAdmin == 0 {
 		checkUser = fmt.Sprintf(" AND user_id=%d", user.Id)
 	}
-	db := Service.Db
 	_, _, err := db.Query(`UPDATE tokenme.airdrops SET %s WHERE id=%d%s LIMIT 1`, strings.Join(updateFields, ","), req.Id, checkUser)
 	if CheckErr(err, c) {
 		return
