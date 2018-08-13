@@ -22,7 +22,7 @@ func WechatMpGetCodeHandler(c *gin.Context) {
     }
     wc := wechat.NewWechat(wechatConfig)
     oauth := wc.GetOauth()
-    err := oauth.Redirect(c.Writer, c.Request, fmt.Sprintf("https://%s/auth/wechat-mp/get-user-info", c.Request.Host), "snsapi_userinfo", "")
+    err := oauth.Redirect(c.Writer, c.Request, "https://tmm.tianxi100.com/auth/wechat-mp/get-user-info", "snsapi_userinfo", "")
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
@@ -32,7 +32,7 @@ func WechatMpGetCodeHandler(c *gin.Context) {
 func WechatMpGetUserInfoHandler(c *gin.Context) {
     code := c.Query("code")
     if code != "" {
-        c.Redirect(http.StatusFound, fmt.Sprintf("https://%s/rp.html#/guide?code=%s", c.Request.Host, code))
+        c.Redirect(http.StatusFound, fmt.Sprintf("https://tmm.tianxi100.com/rp.html#/guide?code=%s", code))
     }
 }
 
