@@ -158,6 +158,7 @@ func (this *AllawanceChecker) CheckApprove(airdrop *common.Airdrop, ctx context.
 	}
 	db := this.service.Db
 	tokenBalance, err := ethutils.StandardTokenBalanceOf(token, airdrop.Wallet)
+	log.Info("Allowrance:%v, Balance:%v, AirdropId:%d", allowance, tokenBalance, airdrop.Id)
 	if allowance.Cmp(tokenBalance) == -1 {
 		if airdrop.ApproveTxStatus == 1 {
 			receipt, err := ethutils.TransactionReceipt(this.service.Geth, ctx, airdrop.ApproveTx)

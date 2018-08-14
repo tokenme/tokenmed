@@ -174,10 +174,12 @@ WHERE ass.tx='%s'`
 		for _, row := range rows {
 			msgId := row.Int(10)
 			chatId := row.Int64(11)
-			info := fmt.Sprintf("Congratulations! Your airdrop token (%d %s) has been send out!", airdrop.GiveOut, airdrop.Token.Name)
-			msg := tgbotapi.NewMessage(chatId, info)
-			msg.ReplyToMessageID = msgId
-			this.telegramBot.Send(msg)
+			if chatId != 0 {
+				info := fmt.Sprintf("Congratulations! Your airdrop token (%d %s) has been send out!", airdrop.GiveOut, airdrop.Token.Name)
+				msg := tgbotapi.NewMessage(chatId, info)
+				msg.ReplyToMessageID = msgId
+				this.telegramBot.Send(msg)
+			}
 		}
 	}
 
