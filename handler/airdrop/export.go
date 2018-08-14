@@ -70,13 +70,71 @@ func SubmissionExportHandler(c *gin.Context) {
 	if startDate.After(endDate) {
 		startDate = endDate.AddDate(0, 0, -30)
 	}
-	query := `SELECT wallet, referrer, status, telegram_user_id, telegram_username, telegram_user_firstname, telegram_user_lastname, tx, inserted, updated FROM tokenme.airdrop_submissions WHERE airdrop_id=%d AND inserted>='%s' AND inserted<='%s' ORDER BY inserted ASC`
+	query := `SELECT
+	wallet ,
+	referrer ,
+	status ,
+	telegram_user_id ,
+	telegram_username ,
+	telegram_user_firstname ,
+	telegram_user_lastname ,
+	tx ,
+	inserted ,
+	updated
+FROM
+	tokenme.airdrop_submissions
+WHERE
+	airdrop_id = %d
+UNION
+SELECT wallet,
+    referrer,
+    -1,
+    -1,
+    '',
+    '',
+    '',
+    '',
+    inserted,
+    updated
+FROM tokenme.airdrop_wallets
+WHERE airdrop_id = %d
+ORDER BY inserted ASC`
 	fields := []string{"wallet", "referrer", "status", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}
 	if requireEmail > 0 {
-		query = `SELECT wallet, referrer, status, email, telegram_user_id, telegram_username, telegram_user_firstname, telegram_user_lastname, tx, inserted, updated FROM tokenme.airdrop_submissions WHERE airdrop_id=%d AND inserted>='%s' AND inserted<='%s' ORDER BY inserted ASC`
+		query = `SELECT
+	wallet ,
+	referrer ,
+	status ,
+	email,
+	telegram_user_id ,
+	telegram_username ,
+	telegram_user_firstname ,
+	telegram_user_lastname ,
+	tx ,
+	inserted ,
+	updated
+FROM
+	tokenme.airdrop_submissions
+WHERE
+	airdrop_id = %d
+UNION
+SELECT wallet,
+    referrer,
+    -1,
+    email,
+    -1,
+    '',
+    '',
+    '',
+    '',
+    inserted,
+    updated
+FROM tokenme.airdrop_wallets
+WHERE airdrop_id = %d
+ORDER BY inserted ASC`
 		fields = []string{"wallet", "referrer", "status", "email", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}
 	}
-	rows, _, err = db.Query(query, airdropId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	rows, _, err = db.Query(query, airdropId, airdropId)
 	if CheckErr(err, c) {
 		return
 	}

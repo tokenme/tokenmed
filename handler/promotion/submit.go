@@ -79,6 +79,10 @@ func SubmitHandler(c *gin.Context) {
 		log.Error(err.Error())
 		return
 	}
+	_, _, err = db.Query(`INSERT INTO tokenme.airdrop_wallets (airdrop_id, wallet, referrer, email) VALUES (%d, '%s', '%s', %s) ON DUPLICATE KEY UPDATE email=VALUES(email)`, proto.AirdropId, db.Escape(req.Wallet), db.Escape(proto.Referrer), email)
+	if err != nil {
+		log.Error(err.Error())
+	}
 	promotion, err := getPromotionLink(proto, req.Wallet)
 	if CheckErr(err, c) {
 		log.Error(err.Error())
