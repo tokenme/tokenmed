@@ -143,7 +143,7 @@ ORDER BY inserted ASC`
 	lines := [][]string{fields}
 	for _, row := range rows {
 		var status string
-		switch row.Uint(2) {
+		switch row.Int(2) {
 		case 0:
 			status = "pending"
 		case 1:
@@ -152,6 +152,8 @@ ORDER BY inserted ASC`
 			status = "success"
 		case 3:
 			status = "failed"
+		case -1:
+			status = "incomplete"
 		}
 		var line []string
 		if requireEmail > 0 {
