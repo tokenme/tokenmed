@@ -194,11 +194,7 @@ func (this *AllawanceChecker) CheckApprove(airdrop *common.Airdrop, ctx context.
 		}
 		eth.TransactorUpdate(transactor, transactorOpts, ctx)
 		if airdrop.ApproveTx != "" {
-			_, isPending, err := ethutils.TransactionByHash(this.service.Geth, ctx, airdrop.ApproveTx)
-			if err != nil {
-				log.Error(err.Error())
-				return err
-			}
+			_, isPending, _ := ethutils.TransactionByHash(this.service.Geth, ctx, airdrop.ApproveTx)
 			if isPending {
 				log.Info("Approve Tx:%s, AirdropId:%d isPending", airdrop.ApproveTx, airdrop.Id)
 				return nil
