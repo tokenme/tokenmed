@@ -51,7 +51,7 @@ func SubmitHandler(c *gin.Context) {
 	if Check(protocol == "ERC20" && (len(req.Wallet) != 42 || !strings.HasPrefix(req.Wallet, "0x")), "invalid wallet", c) {
 		return
 	}
-	rows, _, err = db.Query("SELECT id FROM tokenme.codes WHERE wallet='%s' AND airdrop_id=%d LIMIT 1", db.Escape(req.Wallet), proto.AirdropId)
+	rows, _, err = db.Query("SELECT id, (SELECT COUNT(1) FROM tokenme.airdrop_submissions AS asub WHERE asub.referrer = '%s' AND asub.airdrop_id = %d) AS submissions FROM tokenme.codes WHERE wallet='%s' AND airdrop_id=%d LIMIT 1", db.Escape(req.Wallet), proto.AirdropId, db.Escape(req.Wallet), proto.AirdropId)
 	if CheckErr(err, c) {
 		log.Error(err.Error())
 		return
@@ -64,6 +64,8 @@ func SubmitHandler(c *gin.Context) {
 		}
 		code := token.Token(rows[0].Uint64(0))
 		promotion.VerifyCode = code
+        promotion.Submissions = rows[0].Uint64(1)
+
 		c.JSON(http.StatusOK, promotion)
 		return
 	}
@@ -88,7 +90,6 @@ func SubmitHandler(c *gin.Context) {
 		log.Error(err.Error())
 		return
 	}
-
 	c.JSON(http.StatusOK, promotion)
 }
 

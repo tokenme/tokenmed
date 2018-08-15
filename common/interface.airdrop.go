@@ -66,7 +66,8 @@ type Airdrop struct {
 	Intro            string               `json:"intro,omitempty"`
 	ReplyMsg         string				  `json:"reply_msg,omitempty"`
 	SyncDrop         uint                 `json:"-"`
-	NoDrop 			 uint 				  `json:"-"`
+	NoDrop			 uint				  `json:"-"`
+    PromotionPage    string               `json:"promotion_page,omitempty"`
 }
 
 type AirdropStats struct {
