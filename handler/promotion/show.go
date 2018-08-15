@@ -26,7 +26,7 @@ func ShowHandler(c *gin.Context) {
 		return
 	}
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, t.client_ios, t.client_android, t.website, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.telegram_group, a.require_email, a.max_submissions, a.no_drop, a.inserted, a.updated, a.intro FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) INNER JOIN tokenme.promotions AS p ON (p.airdrop_id=a.id) WHERE a.id=%d AND p.id=%d AND p.user_id=%d AND p.adzone_id=%d AND p.channel_id=%d`, proto.AirdropId, proto.Id, proto.UserId, proto.AdzoneId, proto.ChannelId)
+	rows, _, err := db.Query(`SELECT a.id, a.user_id, a.title, a.wallet, a.salt, t.address, t.name, t.symbol, t.decimals, t.protocol, t.client_ios, t.client_android, t.website, a.gas_price, a.gas_limit, a.commission_fee, a.give_out, a.bonus, a.status, a.balance_status, a.start_date, a.end_date, a.telegram_group, a.require_email, a.max_submissions, a.no_drop, a.inserted, a.updated, a.intro, a.promotion_page FROM tokenme.airdrops AS a INNER JOIN tokenme.tokens AS t ON (t.address=a.token_address) INNER JOIN tokenme.promotions AS p ON (p.airdrop_id=a.id) WHERE a.id=%d AND p.id=%d AND p.user_id=%d AND p.adzone_id=%d AND p.channel_id=%d`, proto.AirdropId, proto.Id, proto.UserId, proto.AdzoneId, proto.ChannelId)
 	if CheckErr(err, c) {
 		return
 	}
@@ -71,6 +71,7 @@ func ShowHandler(c *gin.Context) {
 		Updated:        row.ForceLocaltime(27),
 		TelegramBot:    Config.TelegramBotName,
 		Intro:          row.Str(28),
+        PromotionPage:  row.Str(29),
 	}
 	today := utils.TimeToDate(time.Now())
 	if airdrop.StartDate.After(today) {
