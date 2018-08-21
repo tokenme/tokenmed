@@ -96,8 +96,9 @@ SELECT wallet,
     '',
     inserted,
     updated
-FROM tokenme.airdrop_wallets
+FROM tokenme.airdrop_wallets AS aw
 WHERE airdrop_id = %d
+  AND NOT EXISTS (SELECT 1 FROM airdrop_submissions AS a_sub WHERE a_sub.airdrop_id = aw.airdrop_id)
 ORDER BY inserted ASC`
 	fields := []string{"wallet", "referrer", "status", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}
 	if requireEmail > 0 {
@@ -129,8 +130,9 @@ SELECT wallet,
     '',
     inserted,
     updated
-FROM tokenme.airdrop_wallets
+FROM tokenme.airdrop_wallets AS aw
 WHERE airdrop_id = %d
+  AND NOT EXISTS (SELECT 1 FROM airdrop_submissions AS a_sub WHERE a_sub.airdrop_id = aw.airdrop_id)
 ORDER BY inserted ASC`
 		fields = []string{"wallet", "referrer", "status", "email", "telegram_user_id", "telegram_username", "telegram_user_firstname", "telegram_user_lastname", "tx", "inserted", "updated"}
 	}
