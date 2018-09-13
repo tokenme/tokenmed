@@ -27,14 +27,13 @@ func SubmitHandler(c *gin.Context) {
 	if CheckErr(c.Bind(&req), c) {
 		return
 	}
-
 	proto, err := common.DecodePromotion([]byte(Config.LinkSalt), req.ProtoKey)
 	if CheckErr(err, c) {
 		return
 	}
 
 	db := Service.Db
-	rows, _, err := db.Query(`SELECT t.protocol, a.require_email FROM tokenme.tokens AS t INNER JOIN tokenme.airdrops AS a ON (a.token_address=t.address) WHERE a.id=%d LIMIT 1`, proto.AirdropId)
+	rows, _, err := db.Query(`SELECT t.protocol, a.require_email, wallet_val_t, wallet_rule FROM tokenme.tokens AS t INNER JOIN tokenme.airdrops AS a ON (a.token_address=t.address) WHERE a.id=%d LIMIT 1`, proto.AirdropId)
 	if CheckErr(err, c) {
 		log.Error(err.Error())
 		return
@@ -44,13 +43,23 @@ func SubmitHandler(c *gin.Context) {
 	}
 	protocol := rows[0].Str(0)
 	requireEmail := rows[0].Uint(1)
+	walletValType := uint8(rows[0].Uint(2))
+	walletRule := strings.TrimSpace(rows[0].Str(3))
 	emailRegex := regexp.MustCompile(Email)
 	if Check(requireEmail > 0 && (req.Email == "" || !emailRegex.MatchString(req.Email)), "invalid email address", c) {
 		return
 	}
-	if Check(protocol == "ERC20" && (len(req.Wallet) != 42 || !strings.HasPrefix(req.Wallet, "0x")), "invalid wallet", c) {
-		return
+	if walletValType == 0 {
+		if Check(protocol == "ERC20" && (len(req.Wallet) != 42 || !strings.HasPrefix(req.Wallet, "0x")), "invalid wallet", c) {
+			return
+		}
 	}
+	if walletRule != "" {
+		if matched, err := regexp.Match(walletRule, []byte(req.Wallet)); CheckErr(err, c) || Check(!matched, "invalid wallet", c) {
+			return
+		}
+	}
+
 	rows, _, err = db.Query("SELECT id, (SELECT COUNT(1) FROM tokenme.airdrop_submissions AS asub WHERE asub.referrer = '%s' AND asub.airdrop_id = %d) AS submissions FROM tokenme.codes WHERE wallet='%s' AND airdrop_id=%d LIMIT 1", db.Escape(req.Wallet), proto.AirdropId, db.Escape(req.Wallet), proto.AirdropId)
 	if CheckErr(err, c) {
 		log.Error(err.Error())
@@ -64,7 +73,7 @@ func SubmitHandler(c *gin.Context) {
 		}
 		code := token.Token(rows[0].Uint64(0))
 		promotion.VerifyCode = code
-        promotion.Submissions = rows[0].Uint64(1)
+		promotion.Submissions = rows[0].Uint64(1)
 
 		c.JSON(http.StatusOK, promotion)
 		return
@@ -90,6 +99,7 @@ func SubmitHandler(c *gin.Context) {
 		log.Error(err.Error())
 		return
 	}
+
 	c.JSON(http.StatusOK, promotion)
 }
 

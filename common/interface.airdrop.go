@@ -30,6 +30,11 @@ const (
 	AirdropBalanceStatusEmpty   AirdropBalanceStatus = 3
 )
 
+const (
+	AirdropWalletNormal uint8 = 0 // 正常钱包
+	AirdropWalletHuobi  uint8 = 1 // 火币ID
+)
+
 type Airdrop struct {
 	Id               uint64               `json:"id"`
 	User             User                 `json:"user"`
@@ -37,6 +42,8 @@ type Airdrop struct {
 	Token            Token                `json:"token"`
 	WalletPrivKey    string               `json:"-"`
 	Wallet           string               `json:"wallet"`
+	WalletValType    uint8                `json:"wallet_val_t"`
+	WalletRule       string               `json:"wallet_rule"`
 	GasPrice         uint64               `json:"gas_price"`
 	GasLimit         uint64               `json:"gas_limit"`
 	CommissionFee    uint64               `json:"commission_fee"`
@@ -48,7 +55,7 @@ type Airdrop struct {
 	TokenBalance     *big.Int             `json:"token_balance"`
 	Status           AirdropStatus        `json:"status"`
 	BalanceStatus    AirdropBalanceStatus `json:"balance_status"`
-	MaxSubmissions 	 uint 				  `json:"max_submissions,omitempty"`
+	MaxSubmissions   uint                 `json:"max_submissions,omitempty"`
 	DealerContract   string               `json:"-"`
 	DealerTx         string               `json:"-"`
 	DealerTxStatus   uint                 `json:"-"`
@@ -64,10 +71,10 @@ type Airdrop struct {
 	TelegramBot      string               `json:"telegram_bot"`
 	RequireEmail     uint                 `json:"require_email,omitempty"`
 	Intro            string               `json:"intro,omitempty"`
-	ReplyMsg         string				  `json:"reply_msg,omitempty"`
+	ReplyMsg         string               `json:"reply_msg,omitempty"`
 	SyncDrop         uint                 `json:"-"`
-	NoDrop			 uint				  `json:"-"`
-    PromotionPage    string               `json:"promotion_page,omitempty"`
+	NoDrop           uint                 `json:"-"`
+	PromotionPage    string               `json:"promotion_page,omitempty"`
 }
 
 type AirdropStats struct {
