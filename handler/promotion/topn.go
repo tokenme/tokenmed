@@ -30,10 +30,10 @@ func TopNHandler(c *gin.Context) {
 	db := Service.Db
 	query := `SELECT DISTINCT 
 		c.wallet, c.email, IFNULL(s.cnt, 0) AS total_cnt
-FROM codes AS c
+FROM tokenme.codes AS c
 INNER JOIN (
 	SELECT referrer, count(*) AS cnt 
-	FROM airdrop_submissions
+	FROM tokenme.airdrop_submissions
   WHERE airdrop_id = %d
 	GROUP BY referrer
   ORDER BY cnt DESC, referrer
