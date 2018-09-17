@@ -35,7 +35,7 @@ FROM tokenme.codes AS c
 INNER JOIN (
 	SELECT referrer, count(*) AS cnt 
 	FROM tokenme.airdrop_submissions
-  WHERE airdrop_id = %d AND status = 2
+  WHERE airdrop_id = %d
 	GROUP BY referrer
   ORDER BY cnt DESC, referrer
   LIMIT %d
