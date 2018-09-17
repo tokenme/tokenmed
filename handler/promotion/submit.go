@@ -65,13 +65,11 @@ func SubmitHandler(c *gin.Context) {
 			COUNT(1) 
 		FROM tokenme.airdrop_submissions AS asub 
 		WHERE asub.wallet = '%s' AND asub.airdrop_id = %d
-          AND asub.status = 2
 	) AS sel_submissions, 
    (SELECT 
 			COUNT(1) 
 		FROM tokenme.airdrop_submissions AS asub2
 		WHERE asub2.referrer = '%s' AND asub2.airdrop_id = %d
-       AND asub2.status = 2
 	) AS submissions
 FROM tokenme.codes 
 WHERE wallet='%s' AND airdrop_id=%d LIMIT 1`, db.Escape(req.Wallet), proto.AirdropId, db.Escape(req.Wallet), proto.AirdropId, db.Escape(req.Wallet), proto.AirdropId)
