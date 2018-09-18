@@ -27,7 +27,7 @@ func TopNHandler(c *gin.Context) {
 	}
 
 	db := Service.Db
-	query := `SELECT IF(asub.referrer IS NULL OR asub.referrer = "", asub.wallet, asub.referrer) AS referrer_s, count(*) AS cnt 
+	query := `SELECT IF(TRIM(IFNULL(asub.referrer, "")) = "", asub.wallet, asub.referrer) AS referrer_s, count(*) AS cnt 
 	FROM tokenme.airdrop_submissions AS asub
   WHERE asub.airdrop_id = %d
 	GROUP BY referrer_s
