@@ -43,8 +43,8 @@ func GetHandler(c *gin.Context) {
 	a.end_date ,
 	a.telegram_group ,
 	c.name ,
-	az.name,
-    a.wallet_val_t,
+	az.name ,
+    a.wallet_val_t ,
     a.wallet_rule
 FROM
 	tokenme.promotions AS p
