@@ -19,13 +19,15 @@ import (
 type DealerContractDeployer struct {
 	service *common.Service
 	config  common.Config
+	locker  *sync.Mutex
 	exitCh  chan struct{}
 }
 
-func NewDealerContractDeployer(service *common.Service, config common.Config) *DealerContractDeployer {
+func NewDealerContractDeployer(service *common.Service, config common.Config, locker *sync.Mutex) *DealerContractDeployer {
 	return &DealerContractDeployer{
 		service: service,
 		config:  config,
+		locker:  locker,
 		exitCh:  make(chan struct{}, 1),
 	}
 }
@@ -158,7 +160,7 @@ func (this *DealerContractDeployer) DeployAirdrop(airdrop *common.Airdrop, ctx c
 	db := this.service.Db
 	if airdrop.DealerTxStatus == 0 {
 		transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
-		nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+		nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 		if err != nil {
 			log.Error(err.Error())
 			return err
@@ -173,7 +175,7 @@ func (this *DealerContractDeployer) DeployAirdrop(airdrop *common.Airdrop, ctx c
 			log.Error(err.Error())
 			return err
 		}
-		eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+		eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 		txHash := tx.Hash()
 		_, _, err = db.Query(`UPDATE tokenme.airdrops SET dealer_contract='%s', dealer_tx='%s', dealer_tx_status=1 WHERE id=%d`, contractAddress.Hex(), txHash.Hex(), airdrop.Id)
 		if err != nil {

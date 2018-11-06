@@ -210,7 +210,7 @@ func CheckoutHandler(c *gin.Context) {
 
 func checkoutTransfer(c *gin.Context, privKey string, pubKey string, tokenAddress string, totalTokens *big.Int, toAddress string) (tx *types.Transaction, err error) {
 	transactor := eth.TransactorAccount(privKey)
-	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, pubKey, "main")
+	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, GlobalLock, pubKey, "main")
 	if err != nil {
 		raven.CaptureError(err, nil)
 		return nil, err
@@ -247,6 +247,7 @@ func checkoutTransfer(c *gin.Context, privKey string, pubKey string, tokenAddres
 			return nil, err
 		}
 	}
+	eth.NonceIncr(c, Service.Geth, Service.Redis.Master, GlobalLock, pubKey, "main")
 	return tx, nil
 }
 func getTokenCashBalance(tokenAddress string, decimals int, userId uint64) (*big.Int, error) {

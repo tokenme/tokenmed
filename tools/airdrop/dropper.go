@@ -22,14 +22,16 @@ type Airdropper struct {
 	service *common.Service
 	config  common.Config
 	wg      *sync.WaitGroup
+	locker  *sync.Mutex
 	stopCh  chan struct{}
 	exitCh  chan struct{}
 }
 
-func NewAirdropper(service *common.Service, config common.Config) *Airdropper {
+func NewAirdropper(service *common.Service, config common.Config, locker *sync.Mutex) *Airdropper {
 	return &Airdropper{
 		service: service,
 		config:  config,
+		locker:  locker,
 		exitCh:  make(chan struct{}, 1),
 		stopCh:  make(chan struct{}, 1),
 		wg:      &sync.WaitGroup{},
@@ -358,7 +360,7 @@ func (this *Airdropper) transfer(ctx context.Context, airdrop *common.Airdrop, s
 		return err
 	}
 	transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
-	nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+	nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 	if err != nil {
 		log.Error(err.Error())
 		return err
@@ -374,7 +376,7 @@ func (this *Airdropper) transfer(ctx context.Context, airdrop *common.Airdrop, s
 		log.Error(err.Error())
 		return err
 	}
-	eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+	eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 	if !isReferrer {
 		txHash := tx.Hash()
 		db := this.service.Db
@@ -456,7 +458,7 @@ func (this *Airdropper) DropChunk(ctx context.Context, airdrop *common.Airdrop, 
 
 	transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
 
-	nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+	nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 	if err != nil {
 		log.Error(err.Error())
 		return err
@@ -472,7 +474,7 @@ func (this *Airdropper) DropChunk(ctx context.Context, airdrop *common.Airdrop, 
 		log.Error(err.Error())
 		return err
 	}
-	eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+	eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 	txHash := tx.Hash()
 	log.Info("tx: %s, nonce: %d", txHash.Hex(), nonce)
 	db := this.service.Db

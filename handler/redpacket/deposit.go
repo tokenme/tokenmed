@@ -129,7 +129,7 @@ func DepositHandler(c *gin.Context) {
 	}
 
 	transactor := eth.TransactorAccount(walletPrivateKey)
-	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, walletPublicKey, "main")
+	nonce, err := eth.Nonce(c, Service.Geth, Service.Redis.Master, GlobalLock, walletPublicKey, "main")
 	if CheckErr(err, c) {
 		raven.CaptureError(err, nil)
 		return
@@ -167,6 +167,7 @@ func DepositHandler(c *gin.Context) {
 			return
 		}
 	}
+	eth.NonceIncr(c, Service.Geth, Service.Redis.Master, GlobalLock, walletPublicKey, "main")
 	txHash := tx.Hash()
 	fundTx := txHash.Hex()
 	_, _, err = db.Query(`INSERT INTO tokenme.deposits (tx, user_id, token_address, tokens, status) VALUES ('%s', %d, '%s', %.4f, 0)`, fundTx, user.Id, token.Address, req.TotalTokens)

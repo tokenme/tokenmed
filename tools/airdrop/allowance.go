@@ -16,13 +16,15 @@ import (
 type AllawanceChecker struct {
 	service *common.Service
 	config  common.Config
+	locker  *sync.Mutex
 	exitCh  chan struct{}
 }
 
-func NewAllowanceChecker(service *common.Service, config common.Config) *AllawanceChecker {
+func NewAllowanceChecker(service *common.Service, config common.Config, locker *sync.Mutex) *AllawanceChecker {
 	return &AllawanceChecker{
 		service: service,
 		config:  config,
+		locker:  locker,
 		exitCh:  make(chan struct{}, 1),
 	}
 }
@@ -184,7 +186,7 @@ func (this *AllawanceChecker) CheckApprove(airdrop *common.Airdrop, ctx context.
 			return nil
 		}
 		transactor := eth.TransactorAccount(airdrop.WalletPrivKey)
-		nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+		nonce, err := eth.Nonce(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 		if err != nil {
 			log.Error(err.Error())
 			return err
@@ -206,7 +208,7 @@ func (this *AllawanceChecker) CheckApprove(airdrop *common.Airdrop, ctx context.
 			log.Error(err.Error())
 			return err
 		}
-		eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, airdrop.Wallet, "main")
+		eth.NonceIncr(ctx, this.service.Geth, this.service.Redis.Master, this.locker, airdrop.Wallet, "main")
 		approvalTxHash := approveTx.Hash()
 		_, _, err = db.Query(`UPDATE tokenme.airdrops SET allowance=%d, approve_tx_status=1, approve_tx='%s', allowance_checked=NOW() WHERE id=%d`, tokenBalance.Uint64(), approvalTxHash.Hex(), airdrop.Id)
 		if err != nil {

@@ -119,9 +119,9 @@ func main() {
 		go gcHandler.Start()
 	}
 
-	dealerContractDeployer := airdrop.NewDealerContractDeployer(service, config)
-	allowanceChecker := airdrop.NewAllowanceChecker(service, config)
-	airdropper := airdrop.NewAirdropper(service, config)
+	dealerContractDeployer := airdrop.NewDealerContractDeployer(service, config, handler.GlobalLock)
+	allowanceChecker := airdrop.NewAllowanceChecker(service, config, handler.GlobalLock)
+	airdropper := airdrop.NewAirdropper(service, config, handler.GlobalLock)
 	airdropChecker := airdrop.NewAirdropChecker(service, config, trackerService)
 	depositChecker := redpacket.NewDepositChecker(service, config)
 	checkoutChecker := redpacket.NewCheckoutChecker(service, config)

@@ -16,18 +16,21 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (
-	Service *common.Service
-	Config  common.Config
-	Tracker *tracker.Tracker
+	Service    *common.Service
+	Config     common.Config
+	GlobalLock *sync.Mutex
+	Tracker    *tracker.Tracker
 )
 
 func InitHandler(s *common.Service, c common.Config, t *tracker.Tracker) {
 	Service = s
 	Config = c
 	Tracker = t
+	GlobalLock = new(sync.Mutex)
 	raven.SetDSN(Config.SentryDSN)
 }
 
