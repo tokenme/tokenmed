@@ -119,6 +119,8 @@ func main() {
 		go gcHandler.Start()
 	}
 
+	handler.InitHandler(service, config, trackerService)
+
 	dealerContractDeployer := airdrop.NewDealerContractDeployer(service, config, handler.GlobalLock)
 	allowanceChecker := airdrop.NewAllowanceChecker(service, config, handler.GlobalLock)
 	airdropper := airdrop.NewAirdropper(service, config, handler.GlobalLock)
@@ -138,7 +140,6 @@ func main() {
 	}
 
 	if config.EnableWeb {
-		handler.InitHandler(service, config, trackerService)
 		if config.Debug {
 			gin.SetMode(gin.DebugMode)
 		} else {
